@@ -1,0 +1,16 @@
+#!/bin/sh
+# Project-local Gradle wrapper that uses Android Studio's bundled JDK
+# This sets JAVA_HOME only for this execution, not globally
+
+ANDROID_STUDIO_JDK="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+
+if [ -d "$ANDROID_STUDIO_JDK" ]; then
+    export JAVA_HOME="$ANDROID_STUDIO_JDK"
+else
+    echo "Error: Android Studio JDK not found at $ANDROID_STUDIO_JDK"
+    echo "Please update the path in this script or install Android Studio"
+    exit 1
+fi
+
+# Execute the original gradlew with all passed arguments
+exec "$(dirname "$0")/gradlew" "$@"

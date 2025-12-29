@@ -28,10 +28,10 @@
 
 **Reference**: [quickstart.md](quickstart.md) (full document)
 
-- [ ] T001 Create Android TV project with Gradle Kotlin DSL in `build.gradle.kts` and `settings.gradle.kts`
-- [ ] T002 [P] Configure version catalog with all dependencies in `gradle/libs.versions.toml`
-- [ ] T003 [P] Create `AtvApplication.kt` with Hilt `@HiltAndroidApp` annotation in `app/src/main/kotlin/com/example/atv/AtvApplication.kt`
-- [ ] T004 [P] Configure `AndroidManifest.xml` with Leanback launcher, internet permission, and banner in `app/src/main/AndroidManifest.xml`
+- [X] T001 Create Android TV project with Gradle Kotlin DSL in `build.gradle.kts` and `settings.gradle.kts`
+- [X] T002 [P] Configure version catalog with all dependencies in `gradle/libs.versions.toml`
+- [X] T003 [P] Create `AtvApplication.kt` with Hilt `@HiltAndroidApp` annotation in `app/src/main/kotlin/com/example/atv/AtvApplication.kt`
+- [X] T004 [P] Configure `AndroidManifest.xml` with Leanback launcher, internet permission, and banner in `app/src/main/AndroidManifest.xml`
 
 ---
 
@@ -47,18 +47,18 @@
 - [research.md#room-database](research.md#room-database)
 - [research.md#datastore](research.md#datastore)
 
-- [ ] T005 [P] Create `Channel` domain model in `app/src/main/kotlin/com/example/atv/domain/model/Channel.kt`
-- [ ] T006 [P] Create `Playlist` domain model in `app/src/main/kotlin/com/example/atv/domain/model/Playlist.kt`
-- [ ] T007 [P] Create `PlaybackState` domain model in `app/src/main/kotlin/com/example/atv/domain/model/PlaybackState.kt`
-- [ ] T008 [P] Create `UserPreferences` domain model in `app/src/main/kotlin/com/example/atv/domain/model/UserPreferences.kt`
-- [ ] T009 Create `ChannelEntity` Room entity in `app/src/main/kotlin/com/example/atv/data/local/db/ChannelEntity.kt`
-- [ ] T010 Create `ChannelDao` Room DAO in `app/src/main/kotlin/com/example/atv/data/local/db/ChannelDao.kt`
-- [ ] T011 Create `AtvDatabase` Room database in `app/src/main/kotlin/com/example/atv/data/local/db/AtvDatabase.kt`
-- [ ] T012 Create `UserPreferencesDataStore` in `app/src/main/kotlin/com/example/atv/data/local/datastore/UserPreferencesDataStore.kt`
-- [ ] T013 [P] Create `AppModule` Hilt module in `app/src/main/kotlin/com/example/atv/di/AppModule.kt`
-- [ ] T014 [P] Create `DatabaseModule` Hilt module in `app/src/main/kotlin/com/example/atv/di/DatabaseModule.kt`
-- [ ] T015 Create Compose for TV theme in `app/src/main/kotlin/com/example/atv/ui/theme/Theme.kt`
-- [ ] T016 [P] Create typography definitions in `app/src/main/kotlin/com/example/atv/ui/theme/Typography.kt`
+- [X] T005 [P] Create `Channel` domain model in `app/src/main/kotlin/com/example/atv/domain/model/Channel.kt`
+- [X] T006 [P] Create `Playlist` domain model in `app/src/main/kotlin/com/example/atv/domain/model/Playlist.kt`
+- [X] T007 [P] Create `PlaybackState` domain model in `app/src/main/kotlin/com/example/atv/domain/model/PlaybackState.kt`
+- [X] T008 [P] Create `UserPreferences` domain model in `app/src/main/kotlin/com/example/atv/domain/model/UserPreferences.kt`
+- [X] T009 Create `ChannelEntity` Room entity in `app/src/main/kotlin/com/example/atv/data/local/db/ChannelEntity.kt`
+- [X] T010 Create `ChannelDao` Room DAO in `app/src/main/kotlin/com/example/atv/data/local/db/ChannelDao.kt`
+- [X] T011 Create `AtvDatabase` Room database in `app/src/main/kotlin/com/example/atv/data/local/db/AtvDatabase.kt`
+- [X] T012 Create `UserPreferencesDataStore` in `app/src/main/kotlin/com/example/atv/data/local/datastore/UserPreferencesDataStore.kt`
+- [X] T013 [P] Create `AppModule` Hilt module in `app/src/main/kotlin/com/example/atv/di/AppModule.kt`
+- [X] T014 [P] Create `DatabaseModule` Hilt module in `app/src/main/kotlin/com/example/atv/di/DatabaseModule.kt`
+- [X] T015 Create Compose for TV theme in `app/src/main/kotlin/com/example/atv/ui/theme/Theme.kt`
+- [X] T016 [P] Create typography definitions in `app/src/main/kotlin/com/example/atv/ui/theme/Typography.kt`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -78,15 +78,15 @@
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Create `AtvPlayer` ExoPlayer wrapper with state flow in `app/src/main/kotlin/com/example/atv/player/AtvPlayer.kt`
-- [ ] T018 [US1] Create `PlayerState` sealed class in `app/src/main/kotlin/com/example/atv/player/PlayerState.kt`
-- [ ] T019 [US1] Create `PlayerModule` Hilt module in `app/src/main/kotlin/com/example/atv/di/PlayerModule.kt`
-- [ ] T020 [US1] Create `ChannelRepository` interface in `app/src/main/kotlin/com/example/atv/domain/repository/ChannelRepository.kt`
-- [ ] T021 [US1] Create `ChannelRepositoryImpl` in `app/src/main/kotlin/com/example/atv/data/repository/ChannelRepositoryImpl.kt`
-- [ ] T022 [US1] Create `PlaybackViewModel` with player and channel state in `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt`
-- [ ] T023 [US1] Create `AtvNavGraph` navigation graph in `app/src/main/kotlin/com/example/atv/ui/navigation/AtvNavGraph.kt`
-- [ ] T024 [US1] Create `PlaybackScreen` with full-screen PlayerView in `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackScreen.kt`
-- [ ] T025 [US1] Create `MainActivity` as Compose host in `app/src/main/kotlin/com/example/atv/MainActivity.kt`
+- [X] T017 [US1] Create `AtvPlayer` ExoPlayer wrapper with state flow in `app/src/main/kotlin/com/example/atv/player/AtvPlayer.kt`
+- [X] T018 [US1] Create `PlayerState` sealed class in `app/src/main/kotlin/com/example/atv/player/PlayerState.kt`
+- [X] T019 [US1] Create `PlayerModule` Hilt module in `app/src/main/kotlin/com/example/atv/di/PlayerModule.kt`
+- [X] T020 [US1] Create `ChannelRepository` interface in `app/src/main/kotlin/com/example/atv/domain/repository/ChannelRepository.kt`
+- [X] T021 [US1] Create `ChannelRepositoryImpl` in `app/src/main/kotlin/com/example/atv/data/repository/ChannelRepositoryImpl.kt`
+- [X] T022 [US1] Create `PlaybackViewModel` with player and channel state in `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt`
+- [X] T023 [US1] Create `AtvNavGraph` navigation graph in `app/src/main/kotlin/com/example/atv/ui/navigation/AtvNavGraph.kt`
+- [X] T024 [US1] Create `PlaybackScreen` with full-screen PlayerView in `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackScreen.kt`
+- [X] T025 [US1] Create `MainActivity` as Compose host in `app/src/main/kotlin/com/example/atv/MainActivity.kt`
 
 **Checkpoint**: User Story 1 complete - app launches and plays first channel in full-screen mode
 
@@ -106,13 +106,13 @@
 
 ### Implementation for User Story 4
 
-- [ ] T026 [US4] Create `M3U8Parser` in `app/src/main/kotlin/com/example/atv/data/parser/M3U8Parser.kt`
-- [ ] T027 [US4] Create `ParseM3U8UseCase` in `app/src/main/kotlin/com/example/atv/domain/usecase/ParseM3U8UseCase.kt`
-- [ ] T028 [US4] Create `LoadPlaylistUseCase` in `app/src/main/kotlin/com/example/atv/domain/usecase/LoadPlaylistUseCase.kt`
-- [ ] T029 [US4] Create `SetupViewModel` in `app/src/main/kotlin/com/example/atv/ui/screens/setup/SetupViewModel.kt`
-- [ ] T030 [US4] Create `SetupScreen` with file browser button in `app/src/main/kotlin/com/example/atv/ui/screens/setup/SetupScreen.kt`
-- [ ] T031 [US4] Integrate Storage Access Framework for file picker in `SetupScreen.kt`
-- [ ] T032 [US4] Implement playlist auto-refresh on app restart in `LoadPlaylistUseCase.kt`
+- [X] T026 [US4] Create `M3U8Parser` in `app/src/main/kotlin/com/example/atv/data/parser/M3U8Parser.kt`
+- [X] T027 [US4] Create `ParseM3U8UseCase` in `app/src/main/kotlin/com/example/atv/domain/usecase/ParseM3U8UseCase.kt`
+- [X] T028 [US4] Create `LoadPlaylistUseCase` in `app/src/main/kotlin/com/example/atv/domain/usecase/LoadPlaylistUseCase.kt`
+- [X] T029 [US4] Create `SetupViewModel` in `app/src/main/kotlin/com/example/atv/ui/screens/setup/SetupViewModel.kt`
+- [X] T030 [US4] Create `SetupScreen` with file browser button in `app/src/main/kotlin/com/example/atv/ui/screens/setup/SetupScreen.kt`
+- [X] T031 [US4] Integrate Storage Access Framework for file picker in `SetupScreen.kt`
+- [X] T032 [US4] Implement playlist auto-refresh on app restart in `LoadPlaylistUseCase.kt`
 
 **Checkpoint**: User Story 4 complete - users can load M3U8 files and channels persist across restarts
 
@@ -132,12 +132,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T033 [US2] Create D-pad key handler Modifier extension in `app/src/main/kotlin/com/example/atv/ui/util/KeyEventExtensions.kt`
-- [ ] T034 [US2] Create `SwitchChannelUseCase` in `app/src/main/kotlin/com/example/atv/domain/usecase/SwitchChannelUseCase.kt`
-- [ ] T035 [US2] Add channel switching logic to `PlaybackViewModel` (UP/DOWN handling)
-- [ ] T036 [US2] Create `ChannelInfoOverlay` composable in `app/src/main/kotlin/com/example/atv/ui/components/ChannelInfoOverlay.kt`
-- [ ] T037 [US2] Integrate D-pad handler into `PlaybackScreen` for UP/DOWN events
-- [ ] T038 [US2] Add auto-hide timer (3 seconds) for `ChannelInfoOverlay`
+- [X] T033 [US2] Create D-pad key handler Modifier extension in `app/src/main/kotlin/com/example/atv/ui/util/KeyEventExtensions.kt`
+- [X] T034 [US2] Create `SwitchChannelUseCase` in `app/src/main/kotlin/com/example/atv/domain/usecase/SwitchChannelUseCase.kt`
+- [X] T035 [US2] Add channel switching logic to `PlaybackViewModel` (UP/DOWN handling)
+- [X] T036 [US2] Create `ChannelInfoOverlay` composable in `app/src/main/kotlin/com/example/atv/ui/components/ChannelInfoOverlay.kt`
+- [X] T037 [US2] Integrate D-pad handler into `PlaybackScreen` for UP/DOWN events
+- [X] T038 [US2] Add auto-hide timer (3 seconds) for `ChannelInfoOverlay`
 
 **Checkpoint**: User Story 2 complete - UP/DOWN switching works with channel info display
 
@@ -157,12 +157,12 @@
 
 ### Implementation for User Story 6
 
-- [ ] T039 [US6] Create `ChannelListOverlay` composable in `app/src/main/kotlin/com/example/atv/ui/components/ChannelListOverlay.kt`
-- [ ] T040 [US6] Add channel list state to `PlaybackViewModel` (visibility, highlighted channel)
-- [ ] T041 [US6] Integrate LEFT button handler in `PlaybackScreen` to show channel list
-- [ ] T042 [US6] Implement smooth scrolling for large lists (LazyColumn with TV focus)
-- [ ] T043 [US6] Add "now playing" highlight indicator in channel list
-- [ ] T044 [US6] Add auto-hide timer (10 seconds) for `ChannelListOverlay`
+- [X] T039 [US6] Create `ChannelListOverlay` composable in `app/src/main/kotlin/com/example/atv/ui/components/ChannelListOverlay.kt`
+- [X] T040 [US6] Add channel list state to `PlaybackViewModel` (visibility, highlighted channel)
+- [X] T041 [US6] Integrate LEFT button handler in `PlaybackScreen` to show channel list
+- [X] T042 [US6] Implement smooth scrolling for large lists (LazyColumn with TV focus)
+- [X] T043 [US6] Add "now playing" highlight indicator in channel list
+- [X] T044 [US6] Add auto-hide timer (10 seconds) for `ChannelListOverlay`
 
 **Checkpoint**: User Story 6 complete - channel list browsing works with smooth scrolling
 
@@ -178,13 +178,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] Create `NumberPadOverlay` composable in `app/src/main/kotlin/com/example/atv/ui/components/NumberPadOverlay.kt`
-- [ ] T046 [US3] Add number pad state to `PlaybackViewModel` (visibility, entered digits)
-- [ ] T047 [US3] Integrate OK button handler in `PlaybackScreen` to show number pad
-- [ ] T048 [US3] Implement digit navigation and selection with D-pad
-- [ ] T049 [US3] Add validation for channel number range
-- [ ] T050 [US3] Add error message for invalid channel numbers
-- [ ] T051 [US3] Add auto-hide timer (10 seconds) for `NumberPadOverlay`
+- [X] T045 [US3] Create `NumberPadOverlay` composable in `app/src/main/kotlin/com/example/atv/ui/components/NumberPadOverlay.kt`
+- [X] T046 [US3] Add number pad state to `PlaybackViewModel` (visibility, entered digits)
+- [X] T047 [US3] Integrate OK button handler in `PlaybackScreen` to show number pad
+- [X] T048 [US3] Implement digit navigation and selection with D-pad
+- [X] T049 [US3] Add validation for channel number range
+- [X] T050 [US3] Add error message for invalid channel numbers
+- [X] T051 [US3] Add auto-hide timer (10 seconds) for `NumberPadOverlay`
 
 **Checkpoint**: User Story 3 complete - direct channel access via number pad works
 
@@ -200,14 +200,14 @@
 
 ### Implementation for User Story 7
 
-- [ ] T052 [US7] Create `SettingsMenu` composable in `app/src/main/kotlin/com/example/atv/ui/components/SettingsMenu.kt`
-- [ ] T053 [US7] Create `SettingsViewModel` in `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsViewModel.kt`
-- [ ] T054 [US7] Create `SettingsScreen` in `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsScreen.kt`
-- [ ] T055 [US7] Add MENU button / long-press BACK handler in `PlaybackScreen`
-- [ ] T056 [US7] Implement playlist management options (load new, clear)
-- [ ] T057 [US7] Create `PreferencesRepository` interface in `app/src/main/kotlin/com/example/atv/domain/repository/PreferencesRepository.kt`
-- [ ] T058 [US7] Create `PreferencesRepositoryImpl` in `app/src/main/kotlin/com/example/atv/data/repository/PreferencesRepositoryImpl.kt`
-- [ ] T059 [US7] Add auto-hide timer (30 seconds) for settings menu
+- [X] T052 [US7] Create `SettingsMenu` composable in `app/src/main/kotlin/com/example/atv/ui/components/SettingsMenu.kt`
+- [X] T053 [US7] Create `SettingsViewModel` in `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsViewModel.kt`
+- [X] T054 [US7] Create `SettingsScreen` in `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsScreen.kt`
+- [X] T055 [US7] Add MENU button / long-press BACK handler in `PlaybackScreen`
+- [X] T056 [US7] Implement playlist management options (load new, clear)
+- [X] T057 [US7] Create `PreferencesRepository` interface in `app/src/main/kotlin/com/example/atv/domain/repository/PreferencesRepository.kt`
+- [X] T058 [US7] Create `PreferencesRepositoryImpl` in `app/src/main/kotlin/com/example/atv/data/repository/PreferencesRepositoryImpl.kt`
+- [X] T059 [US7] Add auto-hide timer (30 seconds) for settings menu
 
 **Checkpoint**: User Story 7 complete - settings access and playlist management work
 
@@ -226,12 +226,12 @@
 
 ### Implementation for User Story 5
 
-- [ ] T060 [US5] Create `ChannelManagementViewModel` in `app/src/main/kotlin/com/example/atv/ui/screens/channelmanagement/ChannelManagementViewModel.kt`
-- [ ] T061 [US5] Create `ChannelManagementScreen` in `app/src/main/kotlin/com/example/atv/ui/screens/channelmanagement/ChannelManagementScreen.kt`
-- [ ] T062 [US5] Create Add Channel form with name and URL fields
-- [ ] T063 [US5] Implement Edit Channel functionality with pre-filled form
-- [ ] T064 [US5] Implement Delete Channel with confirmation dialog
-- [ ] T065 [US5] Add navigation from Settings to Channel Management
+- [X] T060 [US5] Create `ChannelManagementViewModel` in `app/src/main/kotlin/com/example/atv/ui/screens/channelmanagement/ChannelManagementViewModel.kt`
+- [X] T061 [US5] Create `ChannelManagementScreen` in `app/src/main/kotlin/com/example/atv/ui/screens/channelmanagement/ChannelManagementScreen.kt`
+- [X] T062 [US5] Create Add Channel form with name and URL fields
+- [X] T063 [US5] Implement Edit Channel functionality with pre-filled form
+- [X] T064 [US5] Implement Delete Channel with confirmation dialog
+- [X] T065 [US5] Add navigation from Settings to Channel Management
 
 **Checkpoint**: User Story 5 complete - full CRUD operations on channels work
 
@@ -243,10 +243,10 @@
 
 **Reference**: [spec.md](spec.md) (Edge Cases, Success Criteria)
 
-- [ ] T066 Create `ErrorOverlay` with Retry/Next buttons in `app/src/main/kotlin/com/example/atv/ui/components/ErrorOverlay.kt`
-- [ ] T067 Add error handling to `PlaybackViewModel` for stream failures
-- [ ] T068 Create loading/buffering indicator in `PlaybackScreen`
-- [ ] T069 Implement last-watched channel persistence (save on switch, restore on launch)
+- [X] T066 Create `ErrorOverlay` with Retry/Next buttons in `app/src/main/kotlin/com/example/atv/ui/components/ErrorOverlay.kt`
+- [X] T067 Add error handling to `PlaybackViewModel` for stream failures
+- [X] T068 Create loading/buffering indicator in `PlaybackScreen`
+- [X] T069 Implement last-watched channel persistence (save on switch, restore on launch)
 - [ ] T070 Add network connectivity monitoring and "No Connection" message
 - [ ] T071 Validate performance: test with 1000+ channel playlist
 - [ ] T072 Validate performance: measure channel switch time (<3s target)

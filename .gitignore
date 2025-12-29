@@ -1,0 +1,39 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio
+*.iml
+.idea/
+*.hprof
+local.properties
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Kotlin
+*.kotlin_module
+
+# Android specific
+*.log
+.cxx/
+.externalNativeBuild/
+captures/
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Environment
+.env
+.env.*
+
+# Test outputs
+app/build/
+app/release/

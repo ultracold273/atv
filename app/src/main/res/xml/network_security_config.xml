@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext HTTP for local network (udpxy server) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.20.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <!-- Add other local IPs if needed -->
+        <domain includeSubdomains="true">192.168.1.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+    
+    <!-- For development/testing, allow all cleartext (remove in production) -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
