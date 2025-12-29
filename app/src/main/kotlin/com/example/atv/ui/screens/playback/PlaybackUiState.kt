@@ -22,6 +22,9 @@ data class PlaybackUiState(
     // Number pad input
     val numberPadInput: String = "",
     
+    // Snackbar message (auto-fading)
+    val snackbarMessage: String? = null,
+    
     // Error state
     val errorMessage: String? = null
 ) {

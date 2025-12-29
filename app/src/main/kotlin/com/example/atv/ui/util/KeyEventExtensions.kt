@@ -17,45 +17,42 @@ import androidx.compose.ui.input.key.type
  * - CENTER/OK: Show number pad
  * - BACK: Dismiss overlay / Navigate back
  * - MENU: Show settings
+ * 
+ * Callbacks return Boolean to indicate if the event was consumed.
+ * Return true to consume the event, false to let it propagate.
  */
 fun Modifier.handleDPadKeyEvents(
-    onUp: (() -> Unit)? = null,
-    onDown: (() -> Unit)? = null,
-    onLeft: (() -> Unit)? = null,
-    onRight: (() -> Unit)? = null,
-    onCenter: (() -> Unit)? = null,
+    onUp: (() -> Boolean)? = null,
+    onDown: (() -> Boolean)? = null,
+    onLeft: (() -> Boolean)? = null,
+    onRight: (() -> Boolean)? = null,
+    onCenter: (() -> Boolean)? = null,
     onBack: (() -> Unit)? = null,
-    onMenu: (() -> Unit)? = null
+    onMenu: (() -> Boolean)? = null
 ): Modifier = this.onKeyEvent { event ->
     if (event.type == KeyEventType.KeyDown) {
         when (event.key) {
             Key.DirectionUp -> {
-                onUp?.invoke()
-                onUp != null
+                onUp?.invoke() ?: false
             }
             Key.DirectionDown -> {
-                onDown?.invoke()
-                onDown != null
+                onDown?.invoke() ?: false
             }
             Key.DirectionLeft -> {
-                onLeft?.invoke()
-                onLeft != null
+                onLeft?.invoke() ?: false
             }
             Key.DirectionRight -> {
-                onRight?.invoke()
-                onRight != null
+                onRight?.invoke() ?: false
             }
             Key.DirectionCenter, Key.Enter -> {
-                onCenter?.invoke()
-                onCenter != null
+                onCenter?.invoke() ?: false
             }
             Key.Back, Key.Escape -> {
                 onBack?.invoke()
                 onBack != null
             }
             Key.Menu -> {
-                onMenu?.invoke()
-                onMenu != null
+                onMenu?.invoke() ?: false
             }
             else -> false
         }

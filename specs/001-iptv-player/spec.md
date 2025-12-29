@@ -138,7 +138,7 @@ As a TV viewer, I want to access a settings menu to manage playlists and prefere
 ### Edge Cases
 
 - What happens when the stream URL becomes unavailable during playback? → Show error overlay with "Retry" and "Next Channel" buttons; stay on current channel until user decides
-- What happens when network connectivity is lost? → Show "No Connection" message and auto-retry when connection is restored
+- What happens when network connectivity is lost? → Show "No Connection" message with subtle reconnecting indicator; auto-retry in background and resume playback automatically when connection is restored
 - What happens when M3U8 file contains no valid channels? → Show "No channels found" message and prompt to load different playlist
 - How does the app behave with very large playlists (1000+ channels)? → Channels should load progressively; scrolling/navigation remains responsive
 - What happens when the app is backgrounded during playback? → Playback pauses; resumes when app returns to foreground
@@ -154,38 +154,44 @@ As a TV viewer, I want to access a settings menu to manage playlists and prefere
 - **FR-002**: App MUST support common streaming protocols (HLS, MPEG-DASH, RTSP)
 - **FR-003**: App MUST auto-play the first channel (or last-watched channel) on launch
 - **FR-004**: App MUST maintain playback state (volume, last channel) between sessions
+- **FR-005**: App MUST display a loading spinner overlay on top of video (with last frame visible) during buffering, auto-hiding when playback resumes
 
 **Remote Control Navigation**
-- **FR-005**: App MUST respond to Android TV remote D-pad inputs (UP, DOWN, LEFT, SELECT/OK, BACK)
-- **FR-006**: App MUST support channel switching via UP/DOWN buttons during playback
-- **FR-007**: App MUST provide on-screen number pad for direct channel selection (activated by SELECT/OK button)
-- **FR-008**: App MUST provide channel list overlay accessible via LEFT button or Guide button during playback
+- **FR-006**: App MUST respond to Android TV remote D-pad inputs (UP, DOWN, LEFT, RIGHT, SELECT/OK, BACK)
+- **FR-007**: App MUST support channel switching via UP/DOWN buttons during playback
+- **FR-008**: App MUST provide on-screen number pad for direct channel selection (activated by SELECT/OK button)
+- **FR-009**: App MUST support D-pad navigation (UP/DOWN/LEFT/RIGHT) on the number pad to move focus between digit buttons
+- **FR-010**: App MUST provide a backspace button on the number pad to delete the last entered digit
+- **FR-011**: App MUST limit channel number input to 3 digits maximum (supporting up to 999 channels)
+- **FR-012**: App MUST provide channel list overlay accessible via LEFT button or Guide button during playback
 
 **Playlist Management**
-- **FR-009**: App MUST parse and load M3U8/M3U playlist format
-- **FR-010**: App MUST support loading playlist from local file (device storage) only
-- **FR-011**: App MUST persist loaded playlist locally
-- **FR-012**: App MUST auto-refresh playlist from original file on app restart
-- **FR-013**: App MUST allow manual addition of individual channels (name + stream URL)
-- **FR-014**: App MUST allow editing of existing channel entries
-- **FR-015**: App MUST allow deletion of channels from playlist
+- **FR-013**: App MUST parse and load M3U8/M3U playlist format
+- **FR-014**: App MUST support loading playlist from local file (device storage) only
+- **FR-015**: App MUST persist loaded playlist locally
+- **FR-016**: App MUST auto-refresh playlist from original file on app restart, resuming on last-watched channel if it still exists (otherwise first channel)
+- **FR-017**: App MUST allow manual addition of individual channels (name + stream URL)
+- **FR-018**: App MUST allow editing of existing channel entries
+- **FR-019**: App MUST allow deletion of channels from playlist
 
 **Channel List UI**
-- **FR-016**: App MUST display scrollable channel list as side overlay during playback
-- **FR-017**: App MUST show channel number, name, and category (if available from M3U8 group-title) in channel list - display only, no filtering
-- **FR-018**: App MUST highlight the currently playing channel in the list
-- **FR-019**: App MUST support smooth scrolling through large channel lists (1000+ channels)
-- **FR-020**: App MUST allow channel selection from list via SELECT/OK button
+- **FR-020**: App MUST display scrollable channel list as side overlay during playback
+- **FR-021**: App MUST show channel number, name, and category (if available from M3U8 group-title) in channel list - display only, no filtering
+- **FR-022**: App MUST highlight the currently playing channel in the list
+- **FR-023**: App MUST support smooth scrolling through large channel lists (1000+ channels)
+- **FR-024**: App MUST allow channel selection from list via SELECT/OK button
+- **FR-025**: App MUST support D-pad UP/DOWN navigation to scroll through the channel list with focus changing accordingly
+- **FR-026**: App MUST set default focus to the currently playing channel when the channel list overlay is opened
 
 **User Interface**
-- **FR-021**: App MUST display channel info overlay (number, name) when switching channels
-- **FR-022**: App MUST auto-hide overlays after brief display (3 seconds for info)
-- **FR-023**: App MUST be fully navigable using TV remote (no touch/mouse required)
+- **FR-027**: App MUST display channel info overlay (number, name) when switching channels
+- **FR-028**: App MUST auto-hide overlays after brief display (3 seconds for info)
+- **FR-029**: App MUST be fully navigable using TV remote (no touch/mouse required)
 
 **Settings**
-- **FR-024**: App MUST provide settings menu accessible via MENU button or long-press BACK
-- **FR-025**: App MUST allow playlist management from settings
-- **FR-026**: App MUST allow clearing/resetting playlist data
+- **FR-030**: App MUST provide settings menu accessible via MENU button or long-press BACK
+- **FR-031**: App MUST allow playlist management from settings
+- **FR-032**: App MUST allow clearing/resetting playlist data
 
 ### Key Entities
 
@@ -217,6 +223,14 @@ As a TV viewer, I want to access a settings menu to manage playlists and prefere
 - Q: What happens when stream fails during playback? → A: Show error overlay and stay on channel - user decides to retry or switch via overlay buttons
 - Q: First launch playlist setup - file or URL? → A: Local file only for MVP; URL input deferred to future release
 - Q: Playlist refresh mechanism? → A: Auto-refresh from original file on app restart
+
+### Session 2025-12-29
+
+- Q: Stream buffering visual feedback? → A: Loading spinner overlay on top of video (last frame visible), auto-hides when playback resumes
+- Q: Network reconnection behavior? → A: Auto-retry in background with subtle indicator, resume playback automatically when successful
+- Q: Maximum channel number input length? → A: 3 digits (supports up to 999 channels)
+- Q: App startup without prior playlist? → A: Welcome/setup screen with clear "Browse Files" button and brief instructions
+- Q: Playlist file change detection on restart? → A: Silently refresh, resume on last-watched channel if it still exists (otherwise first channel)
 
 ## Assumptions
 

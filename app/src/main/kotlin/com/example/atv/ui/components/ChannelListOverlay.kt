@@ -40,6 +40,7 @@ import androidx.tv.material3.Text
 import com.example.atv.domain.model.Channel
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import kotlinx.coroutines.delay
 
 /**
  * Overlay showing the full channel list.
@@ -75,14 +76,16 @@ fun ChannelListOverlay(
                     } else false
                 }
         ) {
-            val focusRequester = remember { FocusRequester() }
+            val currentChannelFocusRequester = remember { FocusRequester() }
             val listState = rememberLazyListState(
                 initialFirstVisibleItemIndex = (currentChannelIndex - 2).coerceAtLeast(0)
             )
             
             LaunchedEffect(visible) {
                 if (visible) {
-                    focusRequester.requestFocus()
+                    // Small delay to ensure list is rendered before requesting focus
+                    delay(100)
+                    currentChannelFocusRequester.requestFocus()
                 }
             }
             
@@ -93,7 +96,6 @@ fun ChannelListOverlay(
                     .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
                     .background(AtvColors.Surface.copy(alpha = 0.95f))
                     .padding(16.dp)
-                    .focusRequester(focusRequester)
             ) {
                 Text(
                     text = "Channels",
@@ -110,7 +112,12 @@ fun ChannelListOverlay(
                         ChannelListItem(
                             channel = channel,
                             isCurrentlyPlaying = index == currentChannelIndex,
-                            onSelected = { onChannelSelected(channel) }
+                            onSelected = { onChannelSelected(channel) },
+                            modifier = if (index == currentChannelIndex) {
+                                Modifier.focusRequester(currentChannelFocusRequester)
+                            } else {
+                                Modifier
+                            }
                         )
                     }
                 }

@@ -37,6 +37,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import kotlinx.coroutines.delay
 
 /**
  * On-screen number pad for direct channel selection.
@@ -47,6 +48,7 @@ fun NumberPadOverlay(
     visible: Boolean,
     maxChannels: Int,
     onDigitPressed: (String) -> Unit,
+    onBackspace: () -> Unit,
     onClear: () -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
@@ -75,11 +77,14 @@ fun NumberPadOverlay(
                 },
             contentAlignment = Alignment.Center
         ) {
-            val focusRequester = remember { FocusRequester() }
+            // Focus requester for the center button (digit 5)
+            val centerButtonFocusRequester = remember { FocusRequester() }
             
             LaunchedEffect(visible) {
                 if (visible) {
-                    focusRequester.requestFocus()
+                    // Delay to prevent SELECT key from triggering click on focused button
+                    delay(100)
+                    centerButtonFocusRequester.requestFocus()
                 }
             }
             
@@ -87,8 +92,7 @@ fun NumberPadOverlay(
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
                     .background(AtvColors.Surface)
-                    .padding(24.dp)
-                    .focusRequester(focusRequester),
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -109,7 +113,7 @@ fun NumberPadOverlay(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = input.ifEmpty { "---" },
+                        text = input.ifEmpty { "-" },
                         style = AtvTypography.displayMedium,
                         color = if (input.isEmpty()) AtvColors.OnSurfaceVariant else AtvColors.Primary,
                         textAlign = TextAlign.Center
@@ -135,10 +139,14 @@ fun NumberPadOverlay(
                         NumberButton("2", onDigitPressed)
                         NumberButton("3", onDigitPressed)
                     }
-                    // Row 4-6
+                    // Row 4-6 (5 gets initial focus)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         NumberButton("4", onDigitPressed)
-                        NumberButton("5", onDigitPressed)
+                        NumberButton(
+                            digit = "5",
+                            onClick = onDigitPressed,
+                            modifier = Modifier.focusRequester(centerButtonFocusRequester)
+                        )
                         NumberButton("6", onDigitPressed)
                     }
                     // Row 7-9
@@ -147,9 +155,9 @@ fun NumberPadOverlay(
                         NumberButton("8", onDigitPressed)
                         NumberButton("9", onDigitPressed)
                     }
-                    // Row Clear-0-Go
+                    // Row CLR-0-GO
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ActionButton("CLR", AtvColors.Warning, onClear)
+                        ActionButton("CLR", AtvColors.OnSurfaceVariant, onBackspace)
                         NumberButton("0", onDigitPressed)
                         ActionButton("GO", AtvColors.Secondary, onConfirm)
                     }

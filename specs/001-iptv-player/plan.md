@@ -1,11 +1,11 @@
 # Implementation Plan: ATV - Android TV IPTV Player
 
-**Branch**: `001-iptv-player` | **Date**: 2025-12-26 | **Spec**: [spec.md](spec.md)
+**Branch**: `001-iptv-player` | **Date**: 2025-12-29 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `/specs/001-iptv-player/spec.md`
 
 ## Summary
 
-Build an Android TV application that plays IPTV streams from M3U8 playlist files. The app provides a TV-optimized interface navigable entirely by remote control, supporting channel switching (UP/DOWN), channel list browsing (LEFT), and direct channel selection via on-screen number pad (OK). Uses Compose for TV for modern declarative UI and Media3 ExoPlayer for streaming playback.
+Build an Android TV application that plays IPTV streams from M3U8 playlist files. The app provides a TV-optimized interface navigable entirely by remote control, supporting channel switching (UP/DOWN), channel list browsing (LEFT) with auto-focus on current channel, and direct channel selection via on-screen number pad (OK) with full D-pad navigation and backspace support. Features include buffering indicator overlays, automatic network reconnection, and smart playlist refresh that preserves playback state. Uses Compose for TV for modern declarative UI and Media3 ExoPlayer for streaming playback.
 
 ## Technical Context
 
@@ -174,69 +174,70 @@ gradle/
 
 ## Implementation Phases
 
-### Phase 1: Project Foundation (Tasks 1-4)
+### Phase 1: Project Foundation (Tasks 1-5)
 
 | # | Task | FRs | Dependencies | Reference |
 |---|------|-----|--------------|-----------|
 | 1 | **Project Setup** - Create Android TV project with Gradle, version catalog, Hilt setup | - | None | [quickstart.md](quickstart.md) (gradle config) |
 | 2 | **Domain Models** - Create Channel, Playlist, PlaybackState, UserPreferences | - | Task 1 | [data-model.md#domain-entities](data-model.md#domain-entities) |
-| 3 | **Database Layer** - Room setup with ChannelEntity, ChannelDao, AtvDatabase | FR-011 | Task 2 | [data-model.md#database-schema](data-model.md#database-schema), [research.md#room-database](research.md#room-database) |
+| 3 | **Database Layer** - Room setup with ChannelEntity, ChannelDao, AtvDatabase | FR-015 | Task 2 | [data-model.md#database-schema](data-model.md#database-schema), [research.md#room-database](research.md#room-database) |
 | 4 | **DataStore Setup** - UserPreferencesDataStore for preferences | FR-004 | Task 2 | [research.md#datastore](research.md#datastore) |
 
-### Phase 2: Core Playback (Tasks 5-8)
+### Phase 2: Foundational & Core Playback (Tasks 6-18)
 
 | # | Task | FRs | Dependencies | Reference |
 |---|------|-----|--------------|-----------|
-| 5 | **M3U8 Parser** - Parse M3U8 files to Channel list | FR-009 | Task 2 | [data-model.md#m3u8-format-specification](data-model.md#m3u8-format-specification), [research.md#m3u8-parsing](research.md#m3u8-parsing) |
-| 6 | **Channel Repository** - ChannelRepository interface + impl with Room | FR-011 | Tasks 3, 5 | [data-model.md#database-schema](data-model.md#database-schema) |
-| 7 | **AtvPlayer Wrapper** - ExoPlayer wrapper with state flow | FR-001, FR-002 | Task 1 | [research.md#media3-exoplayer](research.md#media3-exoplayer) |
+| 5 | **M3U8 Parser** - Parse M3U8 files to Channel list | FR-013 | Task 2 | [data-model.md#m3u8-format-specification](data-model.md#m3u8-format-specification), [research.md#m3u8-parsing](research.md#m3u8-parsing) |
+| 6 | **Channel Repository** - ChannelRepository interface + impl with Room | FR-015 | Tasks 3, 5 | [data-model.md#database-schema](data-model.md#database-schema) |
+| 7 | **AtvPlayer Wrapper** - ExoPlayer wrapper with state flow, buffering state exposure | FR-001, FR-002, FR-005 | Task 1 | [research.md#media3-exoplayer](research.md#media3-exoplayer) |
 | 8 | **Playback ViewModel** - PlaybackViewModel with player + channel state | FR-003 | Tasks 6, 7 | [data-model.md#state-models](data-model.md#state-models) |
 
-### Phase 3: TV UI Shell (Tasks 9-12)
+### Phase 3: User Story 1 - Watch IPTV (Tasks 19-24)
 
 | # | Task | FRs | Dependencies | Reference |
 |---|------|-----|--------------|-----------|
 | 9 | **TV Theme** - Compose for TV theme, typography | - | Task 1 | [research.md#compose-for-tv](research.md#compose-for-tv) |
 | 10 | **Navigation Graph** - AtvNavGraph with screen routes | - | Task 9 | [quickstart.md](quickstart.md) (project structure) |
-| 11 | **Playback Screen** - Full-screen video with PlayerView | FR-023 | Tasks 8, 9, 10 | [research.md#compose-for-tv](research.md#compose-for-tv) |
-| 12 | **D-pad Key Handler** - Modifier extension for remote input | FR-005 | Task 9 | [research.md#android-tv-remote-handling](research.md#android-tv-remote-handling) |
+| 11 | **Playback Screen** - Full-screen video with PlayerView | FR-029 | Tasks 8, 9, 10 | [research.md#compose-for-tv](research.md#compose-for-tv) |
+| 12 | **D-pad Key Handler** - Modifier extension for remote input | FR-006 | Task 9 | [research.md#android-tv-remote-handling](research.md#android-tv-remote-handling) |
 
-### Phase 4: Channel Navigation (Tasks 13-17)
-
-| # | Task | FRs | Dependencies | Reference |
-|---|------|-----|--------------|-----------|
-| 13 | **Channel Switching** - UP/DOWN button handling | FR-006 | Tasks 11, 12 | [spec.md](spec.md) (US-002) |
-| 14 | **Channel Info Overlay** - Show channel number/name on switch | FR-021, FR-022 | Task 13 | [research.md#focus-management](research.md#focus-management) |
-| 15 | **Channel List Overlay** - LEFT button shows scrollable list | FR-008, FR-016-20 | Tasks 11, 12 | [data-model.md#state-models](data-model.md#state-models) (PlaybackUiState) |
-| 16 | **Number Pad Overlay** - OK button shows digit input | FR-007 | Tasks 11, 12 | [spec.md](spec.md) (US-003) |
-| 17 | **Auto-hide Logic** - Timers for overlay auto-dismiss | FR-022 | Tasks 14, 15, 16 | [spec.md](spec.md) (3s/10s timers) |
-
-### Phase 5: Playlist Management (Tasks 18-22)
+### Phase 4: User Stories 4 & 2 - Load & Switch (Tasks 25-37)
 
 | # | Task | FRs | Dependencies | Reference |
 |---|------|-----|--------------|-----------|
-| 18 | **Setup Screen** - First-launch "Browse Files" UI | FR-010 | Tasks 9, 10 | [spec.md](spec.md) (US-004) |
-| 19 | **File Picker Integration** - SAF file picker for M3U8 | FR-010 | Task 18 | Android Storage Access Framework |
-| 20 | **Load Playlist UseCase** - Parse file → save to Room | FR-009, FR-011 | Tasks 5, 6, 19 | [data-model.md#m3u8-format-specification](data-model.md#m3u8-format-specification) |
-| 21 | **Playlist Refresh** - Auto-refresh on app restart | FR-012 | Task 20 | [spec.md](spec.md) (Clarifications) |
-| 22 | **Settings Screen** - Menu with playlist management | FR-024-26 | Tasks 10, 20 | [spec.md](spec.md) (US-007) |
+| 13 | **Channel Switching** - UP/DOWN button handling | FR-007 | Tasks 11, 12 | [spec.md](spec.md) (US-002) |
+| 14 | **Channel Info Overlay** - Show channel number/name on switch | FR-027, FR-028 | Task 13 | [research.md#focus-management](research.md#focus-management) |
+| 15 | **Channel List Overlay** - LEFT button shows scrollable list with D-pad navigation, auto-focus on current channel | FR-012, FR-020-026 | Tasks 11, 12 | [data-model.md#state-models](data-model.md#state-models) (PlaybackUiState) |
+| 16 | **Number Pad Overlay** - OK button shows digit input with D-pad navigation, backspace button, 3-digit max | FR-008, FR-009, FR-010, FR-011 | Tasks 11, 12 | [spec.md](spec.md) (US-003) |
+| 17 | **Auto-hide Logic** - Timers for overlay auto-dismiss | FR-028 | Tasks 14, 15, 16 | [spec.md](spec.md) (3s/10s timers) |
 
-### Phase 6: Channel Management (Tasks 23-25)
+### Phase 5: User Stories 6 & 3 - Browse & Jump (Tasks 38-55)
 
 | # | Task | FRs | Dependencies | Reference |
 |---|------|-----|--------------|-----------|
-| 23 | **Channel Management Screen** - List view with actions | FR-013-15 | Tasks 6, 10 | [spec.md](spec.md) (US-005) |
-| 24 | **Add Channel Form** - Name + URL input | FR-013 | Task 23 | [data-model.md#domain-entities](data-model.md#domain-entities) (Channel) |
-| 25 | **Edit/Delete Channel** - Modify or remove entries | FR-014, FR-015 | Task 23 | [spec.md](spec.md) (US-005) |
+| 18 | **Setup Screen** - First-launch "Browse Files" UI with instructions | FR-014 | Tasks 9, 10 | [spec.md](spec.md) (US-004) |
+| 19 | **File Picker Integration** - SAF file picker for M3U8 | FR-014 | Task 18 | Android Storage Access Framework |
+| 20 | **Load Playlist UseCase** - Parse file → save to Room | FR-013, FR-015 | Tasks 5, 6, 19 | [data-model.md#m3u8-format-specification](data-model.md#m3u8-format-specification) |
+| 21 | **Playlist Refresh** - Auto-refresh on app restart, resume on last-watched channel if exists | FR-016 | Tasks 4, 20 | [spec.md](spec.md) (Clarifications) |
+| 22 | **Settings Screen** - Menu with playlist management | FR-030-032 | Tasks 10, 20 | [spec.md](spec.md) (US-007) |
 
-### Phase 7: Error Handling & Polish (Tasks 26-29)
+### Phase 6: User Stories 7 & 5 - Settings & Edit (Tasks 56-71)
+
+| # | Task | FRs | Dependencies | Reference |
+|---|------|-----|--------------|-----------|
+| 23 | **Channel Management Screen** - List view with actions | FR-017-019 | Tasks 6, 10 | [spec.md](spec.md) (US-005) |
+| 24 | **Add Channel Form** - Name + URL input | FR-017 | Task 23 | [data-model.md#domain-entities](data-model.md#domain-entities) (Channel) |
+| 25 | **Edit/Delete Channel** - Modify or remove entries | FR-018, FR-019 | Task 23 | [spec.md](spec.md) (US-005) |
+
+### Phase 7: Error Handling & Polish (Tasks 72-82)
 
 | # | Task | FRs | Dependencies | Reference |
 |---|------|-----|--------------|-----------|
 | 26 | **Error Overlay** - Stream failure with Retry/Next | - | Task 11 | [spec.md](spec.md) (Edge Cases) |
-| 27 | **Loading States** - Buffering indicators | - | Task 11 | [data-model.md#state-models](data-model.md#state-models) (PlaybackState) |
-| 28 | **Session Persistence** - Save/restore last channel | FR-004 | Tasks 4, 8 | [spec.md](spec.md) (US-001 AS-3) |
-| 29 | **Performance Testing** - Validate 1000+ channels, <3s switch | - | All | [spec.md](spec.md) (Success Criteria) |
+| 27 | **Loading States** - Buffering spinner overlay on video (last frame visible), auto-hide on resume | FR-005 | Tasks 7, 11 | [data-model.md#state-models](data-model.md#state-models) (PlaybackState) |
+| 28 | **Network Reconnection** - Auto-retry with subtle indicator, resume playback on reconnect | - | Tasks 7, 11 | [spec.md](spec.md) (Clarifications - Session 2025-12-29) |
+| 29 | **Session Persistence** - Save/restore last channel | FR-004 | Tasks 4, 8 | [spec.md](spec.md) (US-001 AS-3) |
+| 30 | **Performance Testing** - Validate 1000+ channels, <3s switch | - | All | [spec.md](spec.md) (Success Criteria) |
 
 ---
 
@@ -288,7 +289,7 @@ Phase 6 (Channel Mgmt)
               │
               v
 Phase 7 (Polish)
-    26, 27, 28, 29
+    26, 27, 28, 29, 30
 ```
 
 ---

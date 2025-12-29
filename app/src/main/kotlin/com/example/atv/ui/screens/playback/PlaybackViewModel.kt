@@ -205,10 +205,15 @@ class PlaybackViewModel @Inject constructor(
     }
     
     fun appendNumberPadDigit(digit: String) {
-        _uiState.update { state ->
-            val newInput = (state.numberPadInput + digit).take(4)
-            state.copy(numberPadInput = newInput)
+        val currentInput = _uiState.value.numberPadInput
+        
+        // Ignore leading 0 (channels start from 1)
+        if (digit == "0" && currentInput.isEmpty()) {
+            return
         }
+        
+        val newInput = (currentInput + digit).take(3)
+        _uiState.update { it.copy(numberPadInput = newInput) }
         // Reset auto-hide timer
         startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideNumberPad() }
     }
@@ -217,13 +222,37 @@ class PlaybackViewModel @Inject constructor(
         _uiState.update { it.copy(numberPadInput = "") }
     }
     
+    fun backspaceNumberPadDigit() {
+        _uiState.update { state ->
+            val newInput = state.numberPadInput.dropLast(1)
+            state.copy(numberPadInput = newInput)
+        }
+        // Reset auto-hide timer
+        startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideNumberPad() }
+    }
+    
     fun confirmNumberPadInput() {
         val input = _uiState.value.numberPadInput
         if (input.isNotEmpty()) {
             val number = input.toIntOrNull()
             if (number != null) {
-                switchToChannel(number)
+                val channelCount = _uiState.value.channelCount
+                if (number < 1 || number > channelCount) {
+                    // Show snackbar error and clear input
+                    showSnackbar("Channel $number does not exist")
+                    _uiState.update { it.copy(numberPadInput = "") }
+                } else {
+                    switchToChannel(number)
+                }
             }
+        }
+    }
+    
+    private fun showSnackbar(message: String) {
+        _uiState.update { it.copy(snackbarMessage = message) }
+        viewModelScope.launch {
+            delay(2000L)
+            _uiState.update { it.copy(snackbarMessage = null) }
         }
     }
     

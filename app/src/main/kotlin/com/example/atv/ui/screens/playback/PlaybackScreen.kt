@@ -1,9 +1,17 @@
 package com.example.atv.ui.screens.playback
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -11,19 +19,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
+import androidx.tv.material3.Text
 import com.example.atv.ui.components.ChannelInfoOverlay
 import com.example.atv.ui.components.ChannelListOverlay
 import com.example.atv.ui.components.ErrorOverlay
 import com.example.atv.ui.components.NumberPadOverlay
 import com.example.atv.ui.components.SettingsMenu
 import com.example.atv.ui.theme.AtvColors
+import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
 
 /**
@@ -55,22 +68,26 @@ fun PlaybackScreen(
                 onUp = { 
                     if (!uiState.hasActiveOverlay) {
                         viewModel.previousChannel()
-                    }
+                        true
+                    } else false
                 },
                 onDown = { 
                     if (!uiState.hasActiveOverlay) {
                         viewModel.nextChannel()
-                    }
+                        true
+                    } else false
                 },
                 onLeft = { 
                     if (!uiState.hasActiveOverlay) {
                         viewModel.showChannelList()
-                    }
+                        true
+                    } else false
                 },
                 onCenter = { 
                     if (!uiState.hasActiveOverlay) {
                         viewModel.showNumberPad()
-                    }
+                        true
+                    } else false
                 },
                 onBack = {
                     viewModel.dismissActiveOverlay()
@@ -78,7 +95,8 @@ fun PlaybackScreen(
                 onMenu = {
                     if (!uiState.hasActiveOverlay) {
                         viewModel.showSettings()
-                    }
+                        true
+                    } else false
                 }
             )
     ) {
@@ -134,6 +152,7 @@ fun PlaybackScreen(
             visible = uiState.showNumberPad,
             maxChannels = uiState.channelCount,
             onDigitPressed = { viewModel.appendNumberPadDigit(it) },
+            onBackspace = { viewModel.backspaceNumberPadDigit() },
             onClear = { viewModel.clearNumberPadInput() },
             onConfirm = { viewModel.confirmNumberPadInput() },
             onDismiss = { viewModel.hideNumberPad() }
@@ -172,5 +191,28 @@ fun PlaybackScreen(
             },
             onDismiss = { viewModel.dismissError() }
         )
+        
+        // Snackbar (bottom center)
+        AnimatedVisibility(
+            visible = uiState.snackbarMessage != null,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(bottom = 48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AtvColors.Error.copy(alpha = 0.9f))
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = uiState.snackbarMessage ?: "",
+                    style = AtvTypography.bodyLarge,
+                    color = AtvColors.OnSurface,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
