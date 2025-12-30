@@ -187,6 +187,10 @@ class PlaybackViewModel @Inject constructor(
         startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideChannelList() }
     }
     
+    fun resetChannelListAutoHide() {
+        startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideChannelList() }
+    }
+    
     fun hideChannelList() {
         overlayAutoHideJob?.cancel()
         _uiState.update { it.copy(showChannelList = false) }
@@ -196,6 +200,10 @@ class PlaybackViewModel @Inject constructor(
     
     fun showNumberPad() {
         _uiState.update { it.copy(showNumberPad = true, showChannelInfo = false, numberPadInput = "") }
+        startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideNumberPad() }
+    }
+    
+    fun resetNumberPadAutoHide() {
         startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideNumberPad() }
     }
     

@@ -90,6 +90,7 @@ fun PlaybackScreen(
                     } else false
                 },
                 onBack = {
+                    // Returns true if overlay was dismissed, false to let back propagate to Activity
                     viewModel.dismissActiveOverlay()
                 },
                 onMenu = {
@@ -143,7 +144,8 @@ fun PlaybackScreen(
             currentChannelIndex = uiState.currentChannelIndex,
             visible = uiState.showChannelList,
             onChannelSelected = { viewModel.selectChannelFromList(it) },
-            onDismiss = { viewModel.hideChannelList() }
+            onDismiss = { viewModel.hideChannelList() },
+            onUserInteraction = { viewModel.resetChannelListAutoHide() }
         )
         
         // Number pad overlay (center)
@@ -155,7 +157,8 @@ fun PlaybackScreen(
             onBackspace = { viewModel.backspaceNumberPadDigit() },
             onClear = { viewModel.clearNumberPadInput() },
             onConfirm = { viewModel.confirmNumberPadInput() },
-            onDismiss = { viewModel.hideNumberPad() }
+            onDismiss = { viewModel.hideNumberPad() },
+            onUserInteraction = { viewModel.resetNumberPadAutoHide() }
         )
         
         // Settings menu (right)
@@ -192,7 +195,7 @@ fun PlaybackScreen(
             onDismiss = { viewModel.dismissError() }
         )
         
-        // Snackbar (bottom center)
+        // Snack bar (bottom center)
         AnimatedVisibility(
             visible = uiState.snackbarMessage != null,
             enter = fadeIn() + slideInVertically { it },

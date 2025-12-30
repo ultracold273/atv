@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -53,6 +54,7 @@ fun ChannelListOverlay(
     visible: Boolean,
     onChannelSelected: (Channel) -> Unit,
     onDismiss: () -> Unit,
+    onUserInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -113,6 +115,7 @@ fun ChannelListOverlay(
                             channel = channel,
                             isCurrentlyPlaying = index == currentChannelIndex,
                             onSelected = { onChannelSelected(channel) },
+                            onUserInteraction = onUserInteraction,
                             modifier = if (index == currentChannelIndex) {
                                 Modifier.focusRequester(currentChannelFocusRequester)
                             } else {
@@ -131,11 +134,17 @@ private fun ChannelListItem(
     channel: Channel,
     isCurrentlyPlaying: Boolean,
     onSelected: () -> Unit,
+    onUserInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = onSelected,
-        modifier = modifier,
+        modifier = modifier
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    onUserInteraction()
+                }
+            },
         shape = ClickableSurfaceDefaults.shape(
             shape = RoundedCornerShape(8.dp)
         ),

@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -52,6 +53,7 @@ fun NumberPadOverlay(
     onClear: () -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    onUserInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -135,31 +137,32 @@ fun NumberPadOverlay(
                 ) {
                     // Row 1-3
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberButton("1", onDigitPressed)
-                        NumberButton("2", onDigitPressed)
-                        NumberButton("3", onDigitPressed)
+                        NumberButton("1", onDigitPressed, onUserInteraction)
+                        NumberButton("2", onDigitPressed, onUserInteraction)
+                        NumberButton("3", onDigitPressed, onUserInteraction)
                     }
                     // Row 4-6 (5 gets initial focus)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberButton("4", onDigitPressed)
+                        NumberButton("4", onDigitPressed, onUserInteraction)
                         NumberButton(
                             digit = "5",
                             onClick = onDigitPressed,
+                            onUserInteraction = onUserInteraction,
                             modifier = Modifier.focusRequester(centerButtonFocusRequester)
                         )
-                        NumberButton("6", onDigitPressed)
+                        NumberButton("6", onDigitPressed, onUserInteraction)
                     }
                     // Row 7-9
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberButton("7", onDigitPressed)
-                        NumberButton("8", onDigitPressed)
-                        NumberButton("9", onDigitPressed)
+                        NumberButton("7", onDigitPressed, onUserInteraction)
+                        NumberButton("8", onDigitPressed, onUserInteraction)
+                        NumberButton("9", onDigitPressed, onUserInteraction)
                     }
                     // Row CLR-0-GO
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ActionButton("CLR", AtvColors.OnSurfaceVariant, onBackspace)
-                        NumberButton("0", onDigitPressed)
-                        ActionButton("GO", AtvColors.Secondary, onConfirm)
+                        ActionButton("CLR", AtvColors.OnSurfaceVariant, onBackspace, onUserInteraction)
+                        NumberButton("0", onDigitPressed, onUserInteraction)
+                        ActionButton("GO", AtvColors.Secondary, onConfirm, onUserInteraction)
                     }
                 }
             }
@@ -171,11 +174,18 @@ fun NumberPadOverlay(
 private fun NumberButton(
     digit: String,
     onClick: (String) -> Unit,
+    onUserInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = { onClick(digit) },
-        modifier = modifier.size(72.dp),
+        modifier = modifier
+            .size(72.dp)
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    onUserInteraction()
+                }
+            },
         shape = ClickableSurfaceDefaults.shape(
             shape = RoundedCornerShape(12.dp)
         ),
@@ -211,11 +221,18 @@ private fun ActionButton(
     label: String,
     color: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
+    onUserInteraction: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.size(72.dp),
+        modifier = modifier
+            .size(72.dp)
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    onUserInteraction()
+                }
+            },
         shape = ClickableSurfaceDefaults.shape(
             shape = RoundedCornerShape(12.dp)
         ),
