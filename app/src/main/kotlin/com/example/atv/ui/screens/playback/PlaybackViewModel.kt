@@ -245,7 +245,7 @@ class PlaybackViewModel @Inject constructor(
             val number = input.toIntOrNull()
             if (number != null) {
                 val channelCount = _uiState.value.channelCount
-                if (number < 1 || number > channelCount) {
+                if (number !in 1..channelCount) {
                     // Show snackbar error and clear input
                     showSnackbar("Channel $number does not exist")
                     _uiState.update { it.copy(numberPadInput = "") }
@@ -257,10 +257,10 @@ class PlaybackViewModel @Inject constructor(
     }
     
     private fun showSnackbar(message: String) {
-        _uiState.update { it.copy(snackbarMessage = message) }
+        _uiState.update { it.copy(snackBarMessage = message) }
         viewModelScope.launch {
             delay(2000L)
-            _uiState.update { it.copy(snackbarMessage = null) }
+            _uiState.update { it.copy(snackBarMessage = null) }
         }
     }
     

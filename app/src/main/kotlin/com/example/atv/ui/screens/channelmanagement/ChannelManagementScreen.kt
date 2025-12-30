@@ -45,7 +45,7 @@ import com.example.atv.ui.util.handleDPadKeyEvents
  */
 @Composable
 fun ChannelManagementScreen(
-    onBack: () -> Unit,
+    onBack: () -> Boolean,
     viewModel: ChannelManagementViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

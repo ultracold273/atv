@@ -27,7 +27,7 @@ fun Modifier.handleDPadKeyEvents(
     onLeft: (() -> Boolean)? = null,
     onRight: (() -> Boolean)? = null,
     onCenter: (() -> Boolean)? = null,
-    onBack: (() -> Unit)? = null,
+    onBack: (() -> Boolean)? = null,
     onMenu: (() -> Boolean)? = null
 ): Modifier = this.onKeyEvent { event ->
     if (event.type == KeyEventType.KeyDown) {
@@ -48,8 +48,7 @@ fun Modifier.handleDPadKeyEvents(
                 onCenter?.invoke() ?: false
             }
             Key.Back, Key.Escape -> {
-                onBack?.invoke()
-                onBack != null
+                onBack?.invoke() ?: false
             }
             Key.Menu -> {
                 onMenu?.invoke() ?: false

@@ -36,7 +36,7 @@ import com.example.atv.ui.util.handleDPadKeyEvents
  */
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
+    onBack: () -> Boolean,
     onLoadNewPlaylist: () -> Unit,
     onManageChannels: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
@@ -142,7 +142,7 @@ fun SettingsScreen(
             }
         }
         
-        // Message snackbar
+        // Message snack bar
         uiState.message?.let { message ->
             LaunchedEffect(message) {
                 kotlinx.coroutines.delay(3000)

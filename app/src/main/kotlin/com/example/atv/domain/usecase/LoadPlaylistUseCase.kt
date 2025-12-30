@@ -7,13 +7,17 @@ import com.example.atv.domain.model.Channel
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.PreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 import javax.inject.Inject
 
 /**
- * Use case for loading a playlist from a file URI.
+ * Use case for loading a playlist from a file URI or HTTP URL.
  */
 class LoadPlaylistUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -22,20 +26,29 @@ class LoadPlaylistUseCase @Inject constructor(
     private val preferencesRepository: PreferencesRepository
 ) {
     
+    companion object {
+        private const val HTTP_TIMEOUT_MS = 30000
+    }
+    
     /**
-     * Load a playlist from a file URI.
+     * Load a playlist from a file URI or HTTP URL.
      * 
-     * @param uri The content URI of the M3U8 file
+     * @param uri The content URI or HTTP URL of the M3U8 file
      * @return Result containing the list of channels or an error
      */
     suspend operator fun invoke(uri: Uri): Result<List<Channel>> {
         return try {
             Timber.d("Loading playlist from: $uri")
             
-            // Read file content
-            val content = readFileContent(uri)
+            // Read content based on scheme
+            val content = when (uri.scheme) {
+                "http", "https" -> readHttpContent(uri.toString())
+                "content", "file" -> readFileContent(uri)
+                else -> return Result.failure(Exception("Unsupported URI scheme: ${uri.scheme}"))
+            }
+            
             if (content.isBlank()) {
-                return Result.failure(Exception("File is empty"))
+                return Result.failure(Exception("Playlist is empty"))
             }
             
             // Parse the content
@@ -90,5 +103,29 @@ class LoadPlaylistUseCase @Inject constructor(
                 reader.readText()
             }
         } ?: throw Exception("Could not open file")
+    }
+    
+    /**
+     * Read content from an HTTP/HTTPS URL.
+     */
+    private suspend fun readHttpContent(urlString: String): String = withContext(Dispatchers.IO) {
+        val url = URL(urlString)
+        val connection = url.openConnection() as HttpURLConnection
+        
+        try {
+            connection.connectTimeout = HTTP_TIMEOUT_MS
+            connection.readTimeout = HTTP_TIMEOUT_MS
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("User-Agent", "ATV-IPTV-Player/1.0")
+            
+            val responseCode = connection.responseCode
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw Exception("HTTP error: $responseCode ${connection.responseMessage}")
+            }
+            
+            connection.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            connection.disconnect()
+        }
     }
 }

@@ -9,11 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -114,6 +112,7 @@ fun PlaybackScreen(
                 modifier = Modifier.fillMaxSize(),
                 update = { playerView ->
                     playerView.player = player
+                    playerView.keepScreenOn = true
                 }
             )
         }
@@ -124,9 +123,9 @@ fun PlaybackScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.tv.material3.Text(
+                Text(
                     text = "Loading...",
-                    style = com.example.atv.ui.theme.AtvTypography.headlineMedium,
+                    style = AtvTypography.headlineMedium,
                     color = AtvColors.OnSurface
                 )
             }
@@ -197,7 +196,7 @@ fun PlaybackScreen(
         
         // Snack bar (bottom center)
         AnimatedVisibility(
-            visible = uiState.snackbarMessage != null,
+            visible = uiState.snackBarMessage != null,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -210,7 +209,7 @@ fun PlaybackScreen(
                     .padding(horizontal = 24.dp, vertical = 12.dp)
             ) {
                 Text(
-                    text = uiState.snackbarMessage ?: "",
+                    text = uiState.snackBarMessage ?: "",
                     style = AtvTypography.bodyLarge,
                     color = AtvColors.OnSurface,
                     textAlign = TextAlign.Center

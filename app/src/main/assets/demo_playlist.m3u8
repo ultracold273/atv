@@ -12,3 +12,144 @@ https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_exam
 #EXTINF:-1 tvg-id="sintel" tvg-name="Sintel" group-title="Demo",Sintel
 https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8
 
+#EXTINF:-1 tvg-id="cctv1hd" tvg-name="CCTV1HD" group-title="央视",CCTV1HD
+http://10.0.2.2:4022/udp/239.49.8.19:9614
+
+#EXTINF:-1 tvg-id="cctv2hd" tvg-name="CCTV2HD" group-title="央视",CCTV2HD
+http://10.0.2.2:4022/udp/239.49.8.50:9802
+
+#EXTINF:-1 tvg-id="cctv3hd" tvg-name="CCTV3HD" group-title="央视",CCTV3HD
+http://10.0.2.2:4022/udp/239.49.8.74:8000
+
+#EXTINF:-1 tvg-id="cctv4hd" tvg-name="CCTV4HD" group-title="央视",CCTV4HD
+http://10.0.2.2:4022/udp/239.49.8.51:9806
+
+#EXTINF:-1 tvg-id="cctv5hd" tvg-name="CCTV5HD" group-title="央视",CCTV5HD
+http://10.0.2.2:4022/udp/239.49.8.75:8000
+
+#EXTINF:-1 tvg-id="cctv6hd" tvg-name="CCTV6HD" group-title="央视",CCTV6HD
+http://10.0.2.2:4022/udp/239.49.8.76:8000
+
+#EXTINF:-1 tvg-id="cctv7hd" tvg-name="CCTV7HD" group-title="央视",CCTV7HD
+http://10.0.2.2:4022/udp/239.49.0.126:8000
+
+#EXTINF:-1 tvg-id="cctv8hd" tvg-name="CCTV8HD" group-title="央视",CCTV8HD
+http://10.0.2.2:4022/udp/239.49.8.77:8000
+
+#EXTINF:-1 tvg-id="cctv10hd" tvg-name="CCTV10HD" group-title="央视",CCTV10HD
+http://10.0.2.2:4022/udp/239.49.8.54:9818
+
+#EXTINF:-1 tvg-id="cctv11hd" tvg-name="CCTV11HD" group-title="央视",CCTV11HD
+http://10.0.2.2:4022/udp/239.49.0.127:8000
+
+#EXTINF:-1 tvg-id="cctv12hd" tvg-name="CCTV12HD" group-title="央视",CCTV12HD
+http://10.0.2.2:4022/udp/239.49.8.55:9822
+
+#EXTINF:-1 tvg-id="cctv13hd" tvg-name="CCTV13HD" group-title="央视",CCTV13HD
+http://10.0.2.2:4022/udp/239.49.8.109:8000
+
+#EXTINF:-1 tvg-id="cctv14hd" tvg-name="CCTV14HD" group-title="央视",CCTV14HD
+http://10.0.2.2:4022/udp/239.49.8.56:9826
+
+#EXTINF:-1 tvg-id="cctv音乐hd" tvg-name="CCTV音乐HD" group-title="央视",CCTV音乐HD
+http://10.0.2.2:4022/udp/239.49.0.128:8000
+
+#EXTINF:-1 tvg-id="cctv16hd" tvg-name="CCTV16HD" group-title="央视",CCTV16HD
+http://10.0.2.2:4022/udp/239.49.8.31:8000
+
+#EXTINF:-1 tvg-id="cctv17hd" tvg-name="CCTV17HD" group-title="央视",CCTV17HD
+http://10.0.2.2:4022/udp/239.49.8.52:9810
+
+#EXTINF:-1 tvg-id="cctv5hd" tvg-name="CCTV5HD" group-title="央视",CCTV5HD
+http://10.0.2.2:4022/udp/239.49.8.18:9610
+
+#EXTINF:-1 tvg-id="cgtn俄语hd" tvg-name="CGTN俄语HD" group-title="央视",CGTN俄语HD
+http://10.0.2.2:4022/udp/239.49.0.111:8000
+
+#EXTINF:-1 tvg-id="江苏卫视hd" tvg-name="江苏卫视HD" group-title="江苏",江苏卫视HD
+http://10.0.2.2:4022/udp/239.49.8.16:9602
+
+#EXTINF:-1 tvg-id="江苏城市hd" tvg-name="江苏城市HD" group-title="江苏",江苏城市HD
+http://10.0.2.2:4022/udp/239.49.8.107:8000
+
+#EXTINF:-1 tvg-id="江苏综艺hd" tvg-name="江苏综艺HD" group-title="江苏",江苏综艺HD
+http://10.0.2.2:4022/udp/239.49.8.108:8000
+
+#EXTINF:-1 tvg-id="江苏体育休闲hd" tvg-name="江苏体育休闲HD" group-title="江苏",江苏体育休闲HD
+http://10.0.2.2:4022/udp/239.49.8.117:8000
+
+#EXTINF:-1 tvg-id="江苏影视hd" tvg-name="江苏影视HD" group-title="江苏",江苏影视HD
+http://10.0.2.2:4022/udp/239.49.8.118:8000
+
+#EXTINF:-1 tvg-id="优漫卡通hd" tvg-name="优漫卡通HD" group-title="江苏",优漫卡通HD
+http://10.0.2.2:4022/udp/239.49.8.119:8000
+
+#EXTINF:-1 tvg-id="江苏新闻hd" tvg-name="江苏新闻HD" group-title="江苏",江苏新闻HD
+http://10.0.2.2:4022/udp/239.49.8.120:8000
+
+#EXTINF:-1 tvg-id="好享购物hd" tvg-name="好享购物HD" group-title="购物",好享购物HD
+http://10.0.2.2:4022/udp/239.49.8.121:8000
+
+#EXTINF:-1 tvg-id="江苏教育hd" tvg-name="江苏教育HD" group-title="江苏",江苏教育HD
+http://10.0.2.2:4022/udp/239.49.8.122:8000
+
+#EXTINF:-1 tvg-id="广西卫视hd" tvg-name="广西卫视HD" group-title="卫视",广西卫视HD
+http://10.0.2.2:4022/udp/239.49.8.10:8000
+
+#EXTINF:-1 tvg-id="天津卫视hd" tvg-name="天津卫视HD" group-title="卫视",天津卫视HD
+http://10.0.2.2:4022/udp/239.49.8.35:8620
+
+#EXTINF:-1 tvg-id="浙江卫视hd" tvg-name="浙江卫视HD" group-title="卫视",浙江卫视HD
+http://10.0.2.2:4022/udp/239.49.8.20:9618
+
+#EXTINF:-1 tvg-id="重庆卫视hd" tvg-name="重庆卫视HD" group-title="卫视",重庆卫视HD
+http://10.0.2.2:4022/udp/239.49.8.57:9830
+
+#EXTINF:-1 tvg-id="环球购物hd" tvg-name="环球购物HD" group-title="购物",环球购物HD
+http://10.0.2.2:4022/udp/239.49.8.123:8000
+
+#EXTINF:-1 tvg-id="辽宁卫视hd" tvg-name="辽宁卫视HD" group-title="卫视",辽宁卫视HD
+http://10.0.2.2:4022/udp/239.49.8.48:8000
+
+#EXTINF:-1 tvg-id="海南卫视hd" tvg-name="海南卫视HD" group-title="卫视",海南卫视HD
+http://10.0.2.2:4022/udp/239.49.8.83:8000
+
+#EXTINF:-1 tvg-id="四川卫视hd" tvg-name="四川卫视HD" group-title="卫视",四川卫视HD
+http://10.0.2.2:4022/udp/239.49.8.110:8000
+
+#EXTINF:-1 tvg-id="江西卫视hd" tvg-name="江西卫视HD" group-title="卫视",江西卫视HD
+http://10.0.2.2:4022/udp/239.49.8.111:8000
+
+#EXTINF:-1 tvg-id="东南卫视hd" tvg-name="东南卫视HD" group-title="卫视",东南卫视HD
+http://10.0.2.2:4022/udp/239.49.8.112:8000
+
+#EXTINF:-1 tvg-id="吉林卫视hd" tvg-name="吉林卫视HD" group-title="卫视",吉林卫视HD
+http://10.0.2.2:4022/udp/239.49.8.113:8000
+
+#EXTINF:-1 tvg-id="河北卫视hd" tvg-name="河北卫视HD" group-title="卫视",河北卫视HD
+http://10.0.2.2:4022/udp/239.49.8.114:8000
+
+#EXTINF:-1 tvg-id="东方卫视hd" tvg-name="东方卫视HD" group-title="卫视",东方卫视HD
+http://10.0.2.2:4022/udp/239.49.8.17:9606
+
+#EXTINF:-1 tvg-id="北京卫视hd" tvg-name="北京卫视HD" group-title="卫视",北京卫视HD
+http://10.0.2.2:4022/udp/239.49.8.11:9414
+
+#EXTINF:-1 tvg-id="湖南卫视hd" tvg-name="湖南卫视HD" group-title="卫视",湖南卫视HD
+http://10.0.2.2:4022/udp/239.49.8.12:9418
+
+#EXTINF:-1 tvg-id="广东卫视hd" tvg-name="广东卫视HD" group-title="卫视",广东卫视HD
+http://10.0.2.2:4022/udp/239.49.8.13:9422
+
+#EXTINF:-1 tvg-id="黑龙江卫视hd" tvg-name="黑龙江卫视HD" group-title="卫视",黑龙江卫视HD
+http://10.0.2.2:4022/udp/239.49.8.14:9426
+
+#EXTINF:-1 tvg-id="深圳卫视hd" tvg-name="深圳卫视HD" group-title="卫视",深圳卫视HD
+http://10.0.2.2:4022/udp/239.49.8.15:9430
+
+#EXTINF:-1 tvg-id="云南卫视hd" tvg-name="云南卫视HD" group-title="卫视",云南卫视HD
+http://10.0.2.2:4022/udp/239.49.0.177:8000
+
+#EXTINF:-1 tvg-id="山东卫视hd" tvg-name="山东卫视HD" group-title="卫视",山东卫视HD
+http://10.0.2.2:4022/udp/239.49.8.7:9306
+

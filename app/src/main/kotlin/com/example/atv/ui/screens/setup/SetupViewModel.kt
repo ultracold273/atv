@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
 import javax.inject.Inject
+import androidx.core.net.toUri
 
 data class SetupUiState(
     val isLoading: Boolean = false,
@@ -144,6 +145,24 @@ class SetupViewModel @Inject constructor(
                 state.copy(errorMessage = "Demo playlist not found at: $path\nPush file with: adb push test_playlist.m3u8 /sdcard/Download/")
             }
         }
+    }
+    
+    /**
+     * Load playlist from a URL (HTTP/HTTPS)
+     */
+    fun loadPlaylistFromUrl(url: String) {
+        if (url.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Please enter a URL") }
+            return
+        }
+        
+        val trimmedUrl = url.trim()
+        if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+            _uiState.update { it.copy(errorMessage = "URL must start with http:// or https://") }
+            return
+        }
+        
+        loadPlaylist(trimmedUrl.toUri())
     }
     
     fun dismissError() {
