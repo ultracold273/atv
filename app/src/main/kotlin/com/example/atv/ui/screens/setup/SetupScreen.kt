@@ -1,27 +1,33 @@
 package com.example.atv.ui.screens.setup
 
-import android.app.Activity
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,24 +40,26 @@ import com.example.atv.ui.util.handleDPadKeyEvents
 
 /**
  * Setup screen for loading playlist files.
+ * 
+ * @param fromStartup If true, will auto-navigate to playback if playlist exists.
+ *                    If false (from settings), always shows the setup screen.
  */
 @Composable
 fun SetupScreen(
     onPlaylistLoaded: () -> Unit,
     onBack: () -> Unit,
+    fromStartup: Boolean = false,
     viewModel: SetupViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
+    var showUrlInput by remember { mutableStateOf(false) }
+    var urlText by remember { mutableStateOf("") }
     
-    // File picker launcher
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                viewModel.loadPlaylist(uri)
-            }
+    // Auto-navigate on startup if playlist exists
+    LaunchedEffect(fromStartup, uiState.hasExistingPlaylist) {
+        if (fromStartup && uiState.hasExistingPlaylist && uiState.channelCount > 0) {
+            onPlaylistLoaded()
         }
     }
     
@@ -72,157 +80,118 @@ fun SetupScreen(
             .background(AtvColors.Background)
             .handleDPadKeyEvents(
                 onBack = { 
-                    if (uiState.hasExistingPlaylist) {
-                        onBack()
+                    when {
+                        showUrlInput -> {
+                            showUrlInput = false
+                            true
+                        }
+                        uiState.hasExistingPlaylist -> {
+                            onBack()
+                            true
+                        }
+                        else -> false
                     }
                 }
             ),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
-        ) {
-            // App logo/title
-            Text(
-                text = "📺",
-                style = AtvTypography.displayLarge
+        if (showUrlInput) {
+            // URL Input Dialog
+            UrlInputDialog(
+                urlText = urlText,
+                onUrlChange = { urlText = it },
+                onConfirm = {
+                    viewModel.loadPlaylistFromUrl(urlText)
+                    showUrlInput = false
+                },
+                onDismiss = { showUrlInput = false }
             )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                text = "ATV",
-                style = AtvTypography.displayMedium,
-                color = AtvColors.Primary
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "Android TV IPTV Player",
-                style = AtvTypography.titleLarge,
-                color = AtvColors.OnSurfaceVariant
-            )
-            
-            Spacer(modifier = Modifier.height(48.dp))
-            
-            if (uiState.isLoading) {
+        } else {
+            // Main setup screen
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(32.dp)
+            ) {
+                // App logo/title
                 Text(
-                    text = "Loading playlist...",
-                    style = AtvTypography.titleMedium,
-                    color = AtvColors.OnSurface
-                )
-            } else if (uiState.errorMessage != null) {
-                Text(
-                    text = uiState.errorMessage!!,
-                    style = AtvTypography.bodyLarge,
-                    color = AtvColors.Error,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    text = "📺",
+                    style = AtvTypography.displayLarge
                 )
                 
-                // Browse button after error
-                BrowseFilesButton(
-                    onClick = {
-                        viewModel.dismissError()
-                        launchFilePicker(filePickerLauncher)
-                    },
-                    modifier = Modifier.focusRequester(focusRequester)
-                )
-            } else {
-                Text(
-                    text = "Select a playlist file to get started",
-                    style = AtvTypography.bodyLarge,
-                    color = AtvColors.OnSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                )
-                
-                BrowseFilesButton(
-                    onClick = { launchFilePicker(filePickerLauncher) },
-                    modifier = Modifier.focusRequester(focusRequester)
-                )
-                
-                // Demo playlist button - always available, loads from bundled assets
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                Surface(
-                    onClick = { viewModel.loadDemoPlaylist() },
-                    modifier = Modifier
-                        .width(250.dp)
-                        .height(48.dp),
-                    shape = ClickableSurfaceDefaults.shape(
-                        shape = RoundedCornerShape(8.dp)
-                    ),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = AtvColors.SurfaceVariant,
-                        focusedContainerColor = AtvColors.Primary.copy(alpha = 0.3f)
-                    ),
-                    border = ClickableSurfaceDefaults.border(
-                        focusedBorder = androidx.tv.material3.Border(
-                            border = androidx.compose.foundation.BorderStroke(
-                                width = 2.dp,
-                                color = AtvColors.Primary
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                    )
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "🎬  Load Demo Playlist",
-                            style = AtvTypography.bodyLarge,
-                            color = AtvColors.OnSurface
-                        )
-                    }
-                }
+                Text(
+                    text = "ATV",
+                    style = AtvTypography.displayMedium,
+                    color = AtvColors.Primary
+                )
                 
-                if (uiState.hasExistingPlaylist) {
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Android TV IPTV Player",
+                    style = AtvTypography.titleLarge,
+                    color = AtvColors.OnSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(48.dp))
+                
+                if (uiState.isLoading) {
+                    Text(
+                        text = "Loading playlist...",
+                        style = AtvTypography.titleMedium,
+                        color = AtvColors.OnSurface
+                    )
+                } else if (uiState.errorMessage != null) {
+                    Text(
+                        text = uiState.errorMessage!!,
+                        style = AtvTypography.bodyLarge,
+                        color = AtvColors.Error,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    // URL input button after error
+                    SetupButton(
+                        text = "🔗  Enter Playlist URL",
+                        onClick = {
+                            viewModel.dismissError()
+                            showUrlInput = true
+                        },
+                        modifier = Modifier.focusRequester(focusRequester)
+                    )
+                } else {
+                    Text(
+                        text = "Select a playlist source",
+                        style = AtvTypography.bodyLarge,
+                        color = AtvColors.OnSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+                    
+                    // URL input button (primary option for Android TV)
+                    SetupButton(
+                        text = "🔗  Enter Playlist URL",
+                        onClick = { showUrlInput = true },
+                        modifier = Modifier.focusRequester(focusRequester),
+                        isPrimary = true
+                    )
+                    
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    Text(
-                        text = "Current playlist: ${uiState.channelCount} channels",
-                        style = AtvTypography.bodyMedium,
-                        color = AtvColors.OnSurfaceVariant
+                    // Demo playlist button
+                    SetupButton(
+                        text = "🎬  Load Demo Playlist",
+                        onClick = { viewModel.loadDemoPlaylist() }
                     )
                     
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Surface(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .width(200.dp)
-                            .height(48.dp),
-                        shape = ClickableSurfaceDefaults.shape(
-                            shape = RoundedCornerShape(8.dp)
-                        ),
-                        colors = ClickableSurfaceDefaults.colors(
-                            containerColor = AtvColors.SurfaceVariant,
-                            focusedContainerColor = AtvColors.Primary.copy(alpha = 0.2f)
-                        ),
-                        border = ClickableSurfaceDefaults.border(
-                            focusedBorder = androidx.tv.material3.Border(
-                                border = androidx.compose.foundation.BorderStroke(
-                                    width = 2.dp,
-                                    color = AtvColors.Primary
-                                ),
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                    if (uiState.hasExistingPlaylist) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            text = "Current playlist: ${uiState.channelCount} channels",
+                            style = AtvTypography.bodyMedium,
+                            color = AtvColors.OnSurfaceVariant
                         )
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Continue",
-                                style = AtvTypography.titleMedium,
-                                color = AtvColors.OnSurface
-                            )
-                        }
                     }
                 }
             }
@@ -230,10 +199,120 @@ fun SetupScreen(
     }
 }
 
+/**
+ * URL input dialog for entering playlist URL
+ */
 @Composable
-private fun BrowseFilesButton(
+private fun UrlInputDialog(
+    urlText: String,
+    onUrlChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val textFieldFocusRequester = remember { FocusRequester() }
+    
+    LaunchedEffect(Unit) {
+        textFieldFocusRequester.requestFocus()
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth(0.7f)
+            .background(
+                color = AtvColors.Surface,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Enter Playlist URL",
+            style = AtvTypography.titleLarge,
+            color = AtvColors.OnSurface
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "Enter the URL of your M3U8 playlist",
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.OnSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Text input field
+        BasicTextField(
+            value = urlText,
+            onValueChange = onUrlChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(
+                    color = AtvColors.SurfaceVariant,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .focusRequester(textFieldFocusRequester),
+            textStyle = AtvTypography.bodyLarge.copy(color = AtvColors.OnSurface),
+            cursorBrush = SolidColor(AtvColors.Primary),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = { onConfirm() }
+            ),
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (urlText.isEmpty()) {
+                        Text(
+                            text = "https://example.com/playlist.m3u8",
+                            style = AtvTypography.bodyLarge,
+                            color = AtvColors.OnSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Action buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+        ) {
+            SetupButton(
+                text = "Cancel",
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f)
+            )
+            
+            SetupButton(
+                text = "Load",
+                onClick = onConfirm,
+                modifier = Modifier.weight(1f),
+                isPrimary = true
+            )
+        }
+    }
+}
+
+/**
+ * Reusable button component for setup screen
+ */
+@Composable
+private fun SetupButton(
+    text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPrimary: Boolean = false
 ) {
     Surface(
         onClick = onClick,
@@ -244,8 +323,16 @@ private fun BrowseFilesButton(
             shape = RoundedCornerShape(12.dp)
         ),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = AtvColors.Primary.copy(alpha = 0.2f),
-            focusedContainerColor = AtvColors.Primary.copy(alpha = 0.4f)
+            containerColor = if (isPrimary) {
+                AtvColors.Primary.copy(alpha = 0.2f)
+            } else {
+                AtvColors.SurfaceVariant
+            },
+            focusedContainerColor = if (isPrimary) {
+                AtvColors.Primary.copy(alpha = 0.4f)
+            } else {
+                AtvColors.Primary.copy(alpha = 0.3f)
+            }
         ),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = androidx.tv.material3.Border(
@@ -262,28 +349,10 @@ private fun BrowseFilesButton(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "📂  Browse Files",
-                style = AtvTypography.titleMedium,
-                color = AtvColors.Primary
+                text = text,
+                style = if (isPrimary) AtvTypography.titleMedium else AtvTypography.bodyLarge,
+                color = if (isPrimary) AtvColors.Primary else AtvColors.OnSurface
             )
         }
     }
-}
-
-private fun launchFilePicker(
-    launcher: androidx.activity.result.ActivityResultLauncher<Intent>
-) {
-    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-        addCategory(Intent.CATEGORY_OPENABLE)
-        type = "*/*"
-        putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
-            "audio/x-mpegurl",
-            "application/vnd.apple.mpegurl",
-            "application/x-mpegurl",
-            "audio/mpegurl",
-            "text/plain",
-            "*/*"
-        ))
-    }
-    launcher.launch(intent)
 }
