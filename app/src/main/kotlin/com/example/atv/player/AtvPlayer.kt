@@ -21,7 +21,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class AtvPlayer @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
     private var exoPlayer: ExoPlayer? = null
     private var currentChannel: Channel? = null

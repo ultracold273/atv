@@ -30,7 +30,7 @@ data class SetupUiState(
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val loadPlaylistUseCase: LoadPlaylistUseCase,
     private val channelRepository: ChannelRepository,
     private val preferencesRepository: PreferencesRepository

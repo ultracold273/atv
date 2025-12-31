@@ -20,7 +20,7 @@ import javax.inject.Inject
  * Use case for loading a playlist from a file URI or HTTP URL.
  */
 class LoadPlaylistUseCase @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val parseM3U8UseCase: ParseM3U8UseCase,
     private val channelRepository: ChannelRepository,
     private val preferencesRepository: PreferencesRepository
