@@ -43,8 +43,7 @@ fun AtvNavGraph(
                     if (navController.previousBackStackEntry != null) {
                         navController.popBackStack()
                     }
-                },
-                fromStartup = navController.previousBackStackEntry == null
+                }
             )
         }
         

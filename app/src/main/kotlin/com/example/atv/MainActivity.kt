@@ -8,10 +8,14 @@ import androidx.activity.addCallback
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.tv.material3.Surface
+import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.ui.navigation.AtvNavGraph
+import com.example.atv.ui.navigation.Routes
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.runBlocking
+import javax.inject.Inject
 
 /**
  * Main activity for the ATV app.
@@ -19,6 +23,8 @@ import dagger.hilt.android.AndroidEntryPoint
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    
+    @Inject lateinit var channelRepository: ChannelRepository
     
     private var lastBackPressTime = 0L
     
@@ -28,6 +34,10 @@ class MainActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Determine start destination based on existing playlist
+        val hasPlaylist = runBlocking { channelRepository.getChannelCount() > 0 }
+        val startDestination = if (hasPlaylist) Routes.PLAYBACK else Routes.SETUP
         
         // Handle double-back to exit
         onBackPressedDispatcher.addCallback(this) {
@@ -54,7 +64,7 @@ class MainActivity : ComponentActivity() {
                         containerColor = AtvColors.Background
                     )
                 ) {
-                    AtvNavGraph()
+                    AtvNavGraph(startDestination = startDestination)
                 }
             }
         }

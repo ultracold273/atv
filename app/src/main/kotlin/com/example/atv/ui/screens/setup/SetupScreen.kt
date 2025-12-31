@@ -40,28 +40,17 @@ import com.example.atv.ui.util.handleDPadKeyEvents
 
 /**
  * Setup screen for loading playlist files.
- * 
- * @param fromStartup If true, will auto-navigate to playback if playlist exists.
- *                    If false (from settings), always shows the setup screen.
  */
 @Composable
 fun SetupScreen(
     onPlaylistLoaded: () -> Unit,
     onBack: () -> Unit,
-    fromStartup: Boolean = false,
     viewModel: SetupViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
     var showUrlInput by remember { mutableStateOf(false) }
     var urlText by remember { mutableStateOf("") }
-    
-    // Auto-navigate on startup if playlist exists
-    LaunchedEffect(fromStartup, uiState.hasExistingPlaylist) {
-        if (fromStartup && uiState.hasExistingPlaylist && uiState.channelCount > 0) {
-            onPlaylistLoaded()
-        }
-    }
     
     // Navigate to playback when playlist is loaded
     LaunchedEffect(uiState.isPlaylistLoaded) {
