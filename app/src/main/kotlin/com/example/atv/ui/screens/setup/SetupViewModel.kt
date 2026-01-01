@@ -134,20 +134,6 @@ class SetupViewModel @Inject constructor(
     }
     
     /**
-     * Load playlist from a file path (for emulator testing where file picker isn't available)
-     */
-    fun loadPlaylistFromPath(path: String) {
-        val file = File(path)
-        if (file.exists()) {
-            loadPlaylist(Uri.fromFile(file))
-        } else {
-            _uiState.update { state ->
-                state.copy(errorMessage = "Demo playlist not found at: $path\nPush file with: adb push test_playlist.m3u8 /sdcard/Download/")
-            }
-        }
-    }
-    
-    /**
      * Load playlist from a URL (HTTP/HTTPS)
      */
     fun loadPlaylistFromUrl(url: String) {
