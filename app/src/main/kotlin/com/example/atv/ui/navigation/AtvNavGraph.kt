@@ -1,10 +1,14 @@
 package com.example.atv.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.atv.ui.components.AppSnackBar
 import com.example.atv.ui.screens.channelmanagement.ChannelManagementScreen
 import com.example.atv.ui.screens.playback.PlaybackScreen
 import com.example.atv.ui.screens.settings.SettingsScreen
@@ -28,10 +32,11 @@ fun AtvNavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Routes.SETUP
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = startDestination
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = startDestination
+        ) {
         composable(Routes.SETUP) {
             SetupScreen(
                 onPlaylistLoaded = {
@@ -82,5 +87,9 @@ fun AtvNavGraph(
                 }
             )
         }
+    }
+    
+        // App-wide snackbar overlay (displays above all screens)
+        AppSnackBar()
     }
 }

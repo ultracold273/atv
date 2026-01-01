@@ -8,6 +8,7 @@ import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
+import com.example.atv.ui.components.SnackBarManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -246,8 +247,8 @@ class PlaybackViewModel @Inject constructor(
             if (number != null) {
                 val channelCount = _uiState.value.channelCount
                 if (number !in 1..channelCount) {
-                    // Show snackbar error and clear input
-                    showSnackbar("Channel $number does not exist")
+                    // Show snack bar error and clear input
+                    showSnackBar("Channel $number does not exist")
                     _uiState.update { it.copy(numberPadInput = "") }
                 } else {
                     switchToChannel(number)
@@ -256,12 +257,8 @@ class PlaybackViewModel @Inject constructor(
         }
     }
     
-    private fun showSnackbar(message: String) {
-        _uiState.update { it.copy(snackBarMessage = message) }
-        viewModelScope.launch {
-            delay(2000L)
-            _uiState.update { it.copy(snackBarMessage = null) }
-        }
+    private fun showSnackBar(message: String) {
+        SnackBarManager.show(message)
     }
     
     // ==================== Settings Overlay ====================

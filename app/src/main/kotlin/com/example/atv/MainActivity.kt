@@ -1,7 +1,6 @@
 package com.example.atv
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.addCallback
@@ -9,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.tv.material3.Surface
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.ui.components.SnackBarManager
 import com.example.atv.ui.navigation.AtvNavGraph
 import com.example.atv.ui.navigation.Routes
 import com.example.atv.ui.theme.AtvColors
@@ -46,13 +46,9 @@ class MainActivity : ComponentActivity() {
                 // Double back detected - exit app
                 finish()
             } else {
-                // First back press - show toast hint
+                // First back press - show hint via app snackbar
                 lastBackPressTime = currentTime
-                Toast.makeText(
-                    this@MainActivity,
-                    "Press back again to exit",
-                    Toast.LENGTH_SHORT
-                ).show()
+                SnackBarManager.show("Press back again to exit")
             }
         }
         

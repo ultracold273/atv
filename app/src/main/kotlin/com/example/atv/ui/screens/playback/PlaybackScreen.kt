@@ -1,28 +1,17 @@
 package com.example.atv.ui.screens.playback
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,7 +37,6 @@ fun PlaybackScreen(
     viewModel: PlaybackViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val focusRequester = remember { FocusRequester() }
     
     // Request focus when screen appears
@@ -193,28 +181,5 @@ fun PlaybackScreen(
             },
             onDismiss = { viewModel.dismissError() }
         )
-        
-        // Snack bar (bottom center)
-        AnimatedVisibility(
-            visible = uiState.snackBarMessage != null,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(bottom = 48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AtvColors.Error.copy(alpha = 0.9f))
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
-            ) {
-                Text(
-                    text = uiState.snackBarMessage ?: "",
-                    style = AtvTypography.bodyLarge,
-                    color = AtvColors.OnSurface,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
     }
 }
