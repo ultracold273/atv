@@ -1,10 +1,13 @@
 package com.example.atv.ui.screens.playback
 
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -12,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,6 +44,21 @@ fun PlaybackScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
+    val context = LocalContext.current
+    
+    // Keep screen on during video playback using window flag.
+    // This is more reliable than View.keepScreenOn because:
+    // 1. Window flags work regardless of view focus or recomposition timing
+    // 2. Properly prevents Android TV screen saver during playback
+    // 3. Automatically clears when leaving PlaybackScreen (via onDispose)
+    DisposableEffect(Unit) {
+        val window = (context as? Activity)?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
     
     // Request focus when screen appears
     LaunchedEffect(Unit) {
@@ -102,7 +121,6 @@ fun PlaybackScreen(
                 modifier = Modifier.fillMaxSize(),
                 update = { playerView ->
                     playerView.player = player
-                    playerView.keepScreenOn = true
                 }
             )
         }
