@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Info -->
+    <string name="app_name">ATV</string>
+    <string name="app_title">ATV</string>
+    <string name="app_subtitle">安卓电视IPTV播放器</string>
+    
+    <!-- Playback -->
+    <string name="channel_info">频道 %1$d: %2$s</string>
+    <string name="loading">加载中…</string>
+    <string name="buffering">缓冲中…</string>
+    <string name="now_playing">正在播放</string>
+    
+    <!-- Errors -->
+    <string name="error_stream_failed">视频流加载失败</string>
+    <string name="error_no_channels">未找到频道</string>
+    <string name="error_invalid_playlist">播放列表文件无效</string>
+    <string name="error_unknown">未知错误</string>
+    <string name="error_playback">播放错误</string>
+    <string name="error_channel_not_found">频道 %1$d 不存在</string>
+    <string name="invalid_channel_number">无效的频道号</string>
+    <string name="no_connection">无网络连接</string>
+    
+    <!-- Buttons/Actions -->
+    <string name="retry">重试</string>
+    <string name="next_channel">下一频道</string>
+    <string name="go">确定</string>
+    <string name="clear">清除</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="ok">确定</string>
+    <string name="delete">删除</string>
+    
+    <!-- Setup Screen -->
+    <string name="browse_files">浏览文件</string>
+    <string name="select_playlist">选择播放列表文件以开始</string>
+    <string name="select_playlist_source">选择播放列表来源</string>
+    <string name="enter_playlist_url">输入播放列表URL</string>
+    <string name="load_demo_playlist">加载演示播放列表</string>
+    <string name="loading_playlist">正在加载播放列表…</string>
+    <string name="current_playlist_count">当前播放列表: %1$d 个频道</string>
+    <string name="enter_url">输入URL</string>
+    <string name="playlist_url_hint">https://example.com/playlist.m3u8</string>
+    <string name="url_load">加载</string>
+    
+    <!-- Settings/Menu -->
+    <string name="quick_menu">快捷菜单</string>
+    <string name="settings">设置</string>
+    <string name="all_settings">全部设置</string>
+    <string name="load_playlist">加载播放列表</string>
+    <string name="clear_playlist">清空播放列表</string>
+    <string name="load_new_playlist">加载新播放列表</string>
+    <string name="load_new_playlist_subtitle">用新的M3U/M3U8文件替换当前频道</string>
+    <string name="manage_channels_subtitle">添加、编辑或删除单个频道</string>
+    <string name="clear_all_data">清除所有数据</string>
+    <string name="clear_all_data_subtitle">删除所有频道并重置偏好设置</string>
+    <string name="clear_all_data_title">清除所有数据？</string>
+    <string name="clear_all_data_message">这将删除所有频道并重置偏好设置。此操作无法撤销。</string>
+    <string name="clear_all">全部清除</string>
+    <string name="about">关于</string>
+    <string name="about_subtitle">ATV - 安卓电视IPTV播放器 v%1$s</string>
+    <string name="status_ready">就绪</string>
+    <string name="status_no_playlist">无播放列表</string>
+    <string name="status">状态</string>
+    <string name="version">版本 %1$s</string>
+    <string name="about_description">一个简单的安卓电视IPTV播放器。加载M3U/M3U8播放列表，通过熟悉的电视遥控器观看您喜爱的频道。</string>
+    <string name="close">关闭</string>
+    <string name="data_cleared">所有数据已清除</string>
+    
+    <!-- Channel Management -->
+    <string name="channel_management">频道管理</string>
+    <string name="add_channel">添加频道</string>
+    <string name="edit_channel">编辑频道</string>
+    <string name="delete_channel">删除频道</string>
+    <string name="channel_name">频道名称</string>
+    <string name="channel_number">频道号</string>
+    <string name="stream_url">视频流URL</string>
+    <string name="confirm_delete">确定要删除此频道吗？</string>
+    <string name="confirm_delete_title">删除频道？</string>
+    <string name="confirm_delete_message">频道 \"%1$s\" 将被永久删除。</string>
+    <string name="no_channels_message">暂无频道。添加一个以开始使用。</string>
+    
+    <!-- Channel List -->
+    <string name="channels">频道列表</string>
+    
+    <!-- Number Pad -->
+    <string name="enter_channel_number">输入频道号</string>
+    <string name="channel_range">1 - %1$d</string>
+    
+    <!-- Navigation Hints -->
+    <string name="press_back_to_exit">再按一次返回键退出</string>
+</resources>
