@@ -89,7 +89,7 @@ fun AtvNavGraph(
         }
     }
     
-        // App-wide snackbar overlay (displays above all screens)
+        // App-wide snack bar overlay (displays above all screens)
         AppSnackBar()
     }
 }
