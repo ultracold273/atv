@@ -28,10 +28,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 
@@ -90,7 +92,7 @@ fun SettingsMenu(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Quick Menu",
+                    text = stringResource(R.string.quick_menu),
                     style = AtvTypography.headlineMedium,
                     color = AtvColors.OnSurface,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -98,26 +100,26 @@ fun SettingsMenu(
                 
                 SettingsMenuItem(
                     icon = "📂",
-                    label = "Load Playlist",
+                    label = stringResource(R.string.load_playlist),
                     onClick = onLoadPlaylist
                 )
                 
                 SettingsMenuItem(
                     icon = "📺",
-                    label = "Manage Channels",
+                    label = stringResource(R.string.channel_management),
                     onClick = onManageChannels
                 )
                 
                 SettingsMenuItem(
                     icon = "🗑️",
-                    label = "Clear Playlist",
+                    label = stringResource(R.string.clear_playlist),
                     onClick = onClearPlaylist,
                     isDestructive = true
                 )
                 
                 SettingsMenuItem(
                     icon = "⚙️",
-                    label = "All Settings",
+                    label = stringResource(R.string.all_settings),
                     onClick = onOpenSettings
                 )
             }

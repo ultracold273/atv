@@ -29,10 +29,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 
@@ -96,7 +98,7 @@ fun ErrorOverlay(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = "Playback Error",
+                    text = stringResource(R.string.error_playback),
                     style = AtvTypography.headlineMedium,
                     color = AtvColors.Error
                 )
@@ -142,7 +144,7 @@ fun ErrorOverlay(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Retry",
+                                text = stringResource(R.string.retry),
                                 style = AtvTypography.titleMedium,
                                 color = AtvColors.Primary
                             )
@@ -177,7 +179,7 @@ fun ErrorOverlay(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Next Channel",
+                                text = stringResource(R.string.next_channel),
                                 style = AtvTypography.titleMedium,
                                 color = AtvColors.Secondary
                             )

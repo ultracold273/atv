@@ -31,11 +31,13 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import kotlinx.coroutines.delay
@@ -98,7 +100,7 @@ fun NumberPadOverlay(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Enter Channel Number",
+                    text = stringResource(R.string.enter_channel_number),
                     style = AtvTypography.titleLarge,
                     color = AtvColors.OnSurface
                 )
@@ -123,7 +125,7 @@ fun NumberPadOverlay(
                 }
                 
                 Text(
-                    text = "1 - $maxChannels",
+                    text = stringResource(R.string.channel_range, maxChannels),
                     style = AtvTypography.labelMedium,
                     color = AtvColors.OnSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
@@ -160,9 +162,9 @@ fun NumberPadOverlay(
                     }
                     // Row CLR-0-GO
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ActionButton("CLR", AtvColors.OnSurfaceVariant, onBackspace, onUserInteraction)
+                        ActionButton(stringResource(R.string.clear), AtvColors.OnSurfaceVariant, onBackspace, onUserInteraction)
                         NumberButton("0", onDigitPressed, onUserInteraction)
-                        ActionButton("GO", AtvColors.Secondary, onConfirm, onUserInteraction)
+                        ActionButton(stringResource(R.string.go), AtvColors.Secondary, onConfirm, onUserInteraction)
                     }
                 }
             }

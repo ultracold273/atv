@@ -12,11 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
+import com.example.atv.R
 import com.example.atv.ui.components.ChannelInfoOverlay
 import com.example.atv.ui.components.ChannelListOverlay
 import com.example.atv.ui.components.ErrorOverlay
@@ -112,7 +114,7 @@ fun PlaybackScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Loading...",
+                    text = stringResource(R.string.loading),
                     style = AtvTypography.headlineMedium,
                     color = AtvColors.OnSurface
                 )
@@ -172,7 +174,7 @@ fun PlaybackScreen(
         
         // Error overlay (center)
         ErrorOverlay(
-            message = uiState.errorMessage ?: "Unknown error",
+            message = uiState.errorMessage ?: stringResource(R.string.error_unknown),
             visible = uiState.showError,
             onRetry = { viewModel.retry() },
             onNextChannel = { 

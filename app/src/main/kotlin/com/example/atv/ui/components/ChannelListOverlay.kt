@@ -34,10 +34,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.atv.R
 import com.example.atv.domain.model.Channel
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
@@ -100,7 +102,7 @@ fun ChannelListOverlay(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Channels",
+                    text = stringResource(R.string.channels),
                     style = AtvTypography.headlineMedium,
                     color = AtvColors.OnSurface,
                     modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
