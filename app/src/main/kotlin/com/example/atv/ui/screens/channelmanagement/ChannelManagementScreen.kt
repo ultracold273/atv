@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -35,6 +37,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.atv.R
 import com.example.atv.domain.model.Channel
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
@@ -58,7 +61,7 @@ fun ChannelManagementScreen(
     // Show Add Dialog
     if (uiState.showAddDialog) {
         ChannelDialog(
-            title = "Add Channel",
+            title = stringResource(R.string.add_channel),
             onSave = { name, url, number ->
                 viewModel.addChannel(name, url, number)
             },
@@ -69,13 +72,14 @@ fun ChannelManagementScreen(
     // Show Edit Dialog
     uiState.editingChannel?.let { channel ->
         ChannelDialog(
-            title = "Edit Channel",
+            title = stringResource(R.string.edit_channel),
             initialName = channel.name,
             initialUrl = channel.streamUrl,
             initialNumber = channel.number.toString(),
             onSave = { name, url, number ->
                 viewModel.updateChannel(channel.copy(name = name, streamUrl = url, number = number))
             },
+            onDelete = { viewModel.showDeleteConfirm(channel) },
             onDismiss = { viewModel.dismissDialog() }
         )
     }
@@ -109,7 +113,7 @@ fun ChannelManagementScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Manage Channels",
+                    text = stringResource(R.string.channel_management),
                     style = AtvTypography.headlineLarge,
                     color = AtvColors.OnSurface
                 )
@@ -138,11 +142,13 @@ fun ChannelManagementScreen(
                     )
                 ) {
                     Box(
-                        modifier = Modifier.padding(horizontal = 24.dp),
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(horizontal = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "+ Add Channel",
+                            text = "+ " + stringResource(R.string.add_channel),
                             style = AtvTypography.titleMedium,
                             color = AtvColors.Secondary
                         )
@@ -159,7 +165,7 @@ fun ChannelManagementScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Loading...",
+                        text = stringResource(R.string.loading),
                         style = AtvTypography.titleMedium,
                         color = AtvColors.OnSurfaceVariant
                     )
@@ -170,7 +176,7 @@ fun ChannelManagementScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No channels. Add one to get started.",
+                        text = stringResource(R.string.no_channels_message),
                         style = AtvTypography.titleMedium,
                         color = AtvColors.OnSurfaceVariant
                     )
@@ -182,8 +188,7 @@ fun ChannelManagementScreen(
                     items(uiState.channels) { channel ->
                         ChannelItem(
                             channel = channel,
-                            onEdit = { viewModel.showEditDialog(channel) },
-                            onDelete = { viewModel.showDeleteConfirm(channel) }
+                            onClick = { viewModel.showEditDialog(channel) }
                         )
                     }
                 }
@@ -195,12 +200,11 @@ fun ChannelManagementScreen(
 @Composable
 private fun ChannelItem(
     channel: Channel,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        onClick = onEdit,
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = ClickableSurfaceDefaults.shape(
             shape = RoundedCornerShape(12.dp)
@@ -223,46 +227,26 @@ private fun ChannelItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = channel.number.toString().padStart(3, ' '),
-                    style = AtvTypography.titleMedium,
-                    color = AtvColors.Primary
-                )
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Column {
-                    Text(
-                        text = channel.name,
-                        style = AtvTypography.bodyLarge,
-                        color = AtvColors.OnSurface
-                    )
-                    Text(
-                        text = channel.streamUrl.take(50) + if (channel.streamUrl.length > 50) "..." else "",
-                        style = AtvTypography.bodyMedium,
-                        color = AtvColors.OnSurfaceVariant
-                    )
-                }
-            }
+            Text(
+                text = channel.number.toString().padStart(3, ' '),
+                style = AtvTypography.titleMedium,
+                color = AtvColors.Primary
+            )
             
-            // Action buttons would go here
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionChip(
-                    label = "Edit",
-                    color = AtvColors.Primary,
-                    onClick = onEdit
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = channel.name,
+                    style = AtvTypography.bodyLarge,
+                    color = AtvColors.OnSurface
                 )
-                ActionChip(
-                    label = "Delete",
-                    color = AtvColors.Error,
-                    onClick = onDelete
+                Text(
+                    text = channel.streamUrl.take(50) + if (channel.streamUrl.length > 50) "..." else "",
+                    style = AtvTypography.bodyMedium,
+                    color = AtvColors.OnSurfaceVariant
                 )
             }
         }
@@ -297,7 +281,9 @@ private fun ActionChip(
         )
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 12.dp),
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -319,6 +305,7 @@ private fun ChannelDialog(
     initialUrl: String = "",
     initialNumber: String = "",
     onSave: (name: String, url: String, number: Int) -> Unit,
+    onDelete: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
@@ -348,7 +335,7 @@ private fun ChannelDialog(
                 
                 // Channel Name
                 Text(
-                    text = "Channel Name",
+                    text = stringResource(R.string.channel_name),
                     style = AtvTypography.labelMedium,
                     color = AtvColors.OnSurfaceVariant
                 )
@@ -370,7 +357,7 @@ private fun ChannelDialog(
                 
                 // Stream URL
                 Text(
-                    text = "Stream URL",
+                    text = stringResource(R.string.stream_url),
                     style = AtvTypography.labelMedium,
                     color = AtvColors.OnSurfaceVariant
                 )
@@ -391,7 +378,7 @@ private fun ChannelDialog(
                 
                 // Channel Number
                 Text(
-                    text = "Channel Number",
+                    text = stringResource(R.string.channel_number),
                     style = AtvTypography.labelMedium,
                     color = AtvColors.OnSurfaceVariant
                 )
@@ -418,23 +405,37 @@ private fun ChannelDialog(
                 // Action buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    ActionChip(
-                        label = "Cancel",
-                        color = AtvColors.OnSurfaceVariant,
-                        onClick = onDismiss
-                    )
-                    ActionChip(
-                        label = "Save",
-                        color = AtvColors.Primary,
-                        onClick = {
-                            val channelNumber = number.toIntOrNull() ?: 0
-                            if (name.isNotBlank() && url.isNotBlank() && channelNumber > 0) {
-                                onSave(name, url, channelNumber)
+                    // Delete button (only shown in edit mode)
+                    if (onDelete != null) {
+                        ActionChip(
+                            label = stringResource(R.string.delete),
+                            color = AtvColors.Error,
+                            onClick = onDelete
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+                    
+                    // Cancel and Save buttons
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ActionChip(
+                            label = stringResource(R.string.cancel),
+                            color = AtvColors.OnSurfaceVariant,
+                            onClick = onDismiss
+                        )
+                        ActionChip(
+                            label = stringResource(R.string.save),
+                            color = AtvColors.Primary,
+                            onClick = {
+                                val channelNumber = number.toIntOrNull() ?: 0
+                                if (name.isNotBlank() && url.isNotBlank() && channelNumber > 0) {
+                                    onSave(name, url, channelNumber)
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -459,7 +460,7 @@ private fun DeleteConfirmDialog(
         ) {
             Column {
                 Text(
-                    text = "Delete Channel?",
+                    text = stringResource(R.string.confirm_delete_title),
                     style = AtvTypography.headlineMedium,
                     color = AtvColors.OnSurface
                 )
@@ -467,7 +468,7 @@ private fun DeleteConfirmDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = "Are you sure you want to delete \"${channel.name}\"? This action cannot be undone.",
+                    text = stringResource(R.string.confirm_delete_message, channel.name),
                     style = AtvTypography.bodyLarge,
                     color = AtvColors.OnSurfaceVariant
                 )
@@ -479,12 +480,12 @@ private fun DeleteConfirmDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                 ) {
                     ActionChip(
-                        label = "Cancel",
+                        label = stringResource(R.string.cancel),
                         color = AtvColors.OnSurfaceVariant,
                         onClick = onDismiss
                     )
                     ActionChip(
-                        label = "Delete",
+                        label = stringResource(R.string.delete),
                         color = AtvColors.Error,
                         onClick = onConfirm
                     )
