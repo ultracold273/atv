@@ -1,11 +1,11 @@
 # Implementation Plan: ATV - Android TV IPTV Player
 
-**Branch**: `001-iptv-player` | **Date**: 2025-12-29 | **Spec**: [spec.md](spec.md)
+**Branch**: `001-iptv-player` | **Date**: 2026-01-02 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `/specs/001-iptv-player/spec.md`
 
 ## Summary
 
-Build an Android TV application that plays IPTV streams from M3U8 playlist files. The app provides a TV-optimized interface navigable entirely by remote control, supporting channel switching (UP/DOWN), channel list browsing (LEFT) with auto-focus on current channel, and direct channel selection via on-screen number pad (OK) with full D-pad navigation and backspace support. Features include buffering indicator overlays, automatic network reconnection, and smart playlist refresh that preserves playback state. Uses Compose for TV for modern declarative UI and Media3 ExoPlayer for streaming playback.
+Build an Android TV application that plays IPTV streams from M3U8 playlist files. The app provides a TV-optimized interface navigable entirely by remote control, supporting channel switching (UP/DOWN), channel list browsing (LEFT) with auto-focus on current channel, and direct channel selection via on-screen number pad (OK) with full D-pad navigation and backspace support. Features include buffering indicator overlays, automatic network reconnection, smart playlist refresh that preserves playback state, and multi-lingual support (English and Chinese). Uses Compose for TV for modern declarative UI and Media3 ExoPlayer for streaming playback.
 
 ## Technical Context
 
@@ -31,6 +31,8 @@ Build an Android TV application that plays IPTV streams from M3U8 playlist files
 | IV. Testing Standards | ✅ PASS | Unit tests for parsers/repos, UI tests for navigation flows |
 | V. UX Consistency | ✅ PASS | Single remote mapping, consistent overlay behaviors, auto-hide timers |
 | VI. Performance | ✅ PASS | Targets defined: <3s channel switch, <100MB memory, 1000+ channels |
+| VII. Internationalization | ✅ PASS | English + Chinese Simplified via Android resources (FR-033 to FR-037) |
+| VIII. Observability | ✅ PASS | Timber logging: errors in prod, verbose in debug (FR-038 to FR-040) |
 
 **Deferred Violations (Justified)**:
 - Security validation deferred to post-MVP per explicit Out of Scope decision
@@ -44,6 +46,7 @@ Build an Android TV application that plays IPTV streams from M3U8 playlist files
 specs/001-iptv-player/
 ├── plan.md              # This file
 ├── research.md          # Phase 0: Technology research
+├── research-i18n.md     # i18n research: Hardcoded strings audit, implementation strategy
 ├── data-model.md        # Phase 1: Entity definitions, DB schema, M3U8 format
 ├── quickstart.md        # Phase 1: Build/run instructions, dependencies
 ├── tasks.md             # Phase 2: Implementation tasks (generate via /speckit.tasks)
@@ -68,6 +71,7 @@ specs/001-iptv-player/
 | Functional requirements | [spec.md](spec.md) | #functional-requirements |
 | User stories | [spec.md](spec.md) | #user-scenarios--testing-mandatory |
 | Success criteria | [spec.md](spec.md) | #success-criteria-mandatory |
+| i18n research | [research-i18n.md](research-i18n.md) | Full document |
 
 ### Source Code (repository root)
 
@@ -139,6 +143,9 @@ app/
     │   │           └── SettingsMenu.kt
     │   └── res/
     │       ├── values/
+    │       │   └── strings.xml          # English (default)
+    │       ├── values-zh/
+    │       │   └── strings.xml          # Chinese (Simplified)
     │       └── drawable/
     └── test/
         └── kotlin/com/example/atv/
@@ -169,6 +176,8 @@ gradle/
 | Preferences | [data-model.md#domain-entities](data-model.md#domain-entities) (UserPreferences) | [research.md#datastore](research.md#datastore) |
 | Dependency Injection | `di/*.kt` | [research.md#hilt-setup](research.md#hilt-setup) |
 | Remote Handling | `ui/util/KeyEventExtensions.kt` | [research.md#android-tv-remote-handling](research.md#android-tv-remote-handling) |
+| Internationalization | `res/values/strings.xml`, `res/values-zh/strings.xml` | [research-i18n.md](research-i18n.md) |
+| Logging | `AtvApplication.kt` (Timber setup) | [spec.md](spec.md) (Observability FRs) |
 
 ---
 
@@ -239,6 +248,19 @@ gradle/
 | 29 | **Session Persistence** - Save/restore last channel | FR-004 | Tasks 4, 8 | [spec.md](spec.md) (US-001 AS-3) |
 | 30 | **Performance Testing** - Validate 1000+ channels, <3s switch | - | All | [spec.md](spec.md) (Success Criteria) |
 
+### Phase 8: Internationalization & Observability (Tasks 83-90)
+
+| # | Task | FRs | Dependencies | Reference |
+|---|------|-----|--------------|-----------|
+| 31 | **String Resource Audit** - Identify all hardcoded strings in Kotlin files | FR-037 | All UI | [research-i18n.md](research-i18n.md) |
+| 32 | **Complete English strings.xml** - Add all missing strings to default resource file | FR-035, FR-037 | Task 31 | [research-i18n.md](research-i18n.md) |
+| 33 | **Chinese Translation** - Create `values-zh/strings.xml` with Simplified Chinese translations | FR-033 | Task 32 | [research-i18n.md](research-i18n.md) |
+| 34 | **Migrate UI Strings** - Replace hardcoded strings with `stringResource()` in all Composables | FR-035, FR-037 | Task 32 | [Compose Resources](https://developer.android.com/develop/ui/compose/resources) |
+| 35 | **Migrate ViewModel Strings** - Use resource IDs or Context for non-Composable contexts | FR-035 | Task 32 | [research-i18n.md](research-i18n.md) |
+| 36 | **Locale Fallback Testing** - Verify English fallback for unsupported locales | FR-034, FR-036 | Tasks 33, 34 | [spec.md](spec.md) (US-008) |
+| 37 | **Timber Logging Config** - Configure debug vs release logging levels | FR-038, FR-039 | Task 1 | [spec.md](spec.md) (Observability) |
+| 38 | **Sensitive Data Audit** - Ensure no PII/credentials in logs | FR-040 | Task 37 | [spec.md](spec.md) (Clarifications - Session 2026-01-02) |
+
 ---
 
 ## Task Dependency Graph
@@ -290,6 +312,15 @@ Phase 6 (Channel Mgmt)
               v
 Phase 7 (Polish)
     26, 27, 28, 29, 30
+              │
+              v
+Phase 8 (i18n & Observability)
+    31 ──> 32 ──> 33
+              │
+              v
+         34, 35 ──> 36
+              
+    37 ──> 38 (parallel to i18n tasks)
 ```
 
 ---

@@ -135,6 +135,25 @@ As a TV viewer, I want to access a settings menu to manage playlists and prefere
 
 ---
 
+### User Story 8 - Multi-lingual Support (Priority: P2)
+
+As a Chinese-speaking TV viewer, I want the app interface to display in Chinese so that I can easily understand and navigate all features.
+
+**Why this priority**: Multi-lingual support expands the user base significantly. English and Chinese cover a large portion of potential users. This enhances usability for non-English speakers.
+
+**Independent Test**: Can be tested by changing device language to Chinese and verifying all UI elements display correctly translated text. Delivers accessibility for Chinese-speaking users.
+
+**Acceptance Scenarios**:
+
+1. **Given** my TV is set to Chinese language, **When** I launch the app, **Then** all UI text (menus, buttons, labels) is displayed in Chinese
+2. **Given** my TV is set to English language, **When** I launch the app, **Then** all UI text is displayed in English
+3. **Given** my TV is set to French (unsupported language), **When** I launch the app, **Then** all UI text falls back to English
+4. **Given** I am viewing any screen (playback, settings, setup), **When** I view the UI, **Then** all text is consistent in the same language
+5. **Given** an error occurs, **When** an error message is displayed, **Then** the error text is in the device's language (or English fallback)
+6. **Given** I change my device language setting, **When** I restart the app, **Then** the app UI reflects the new language
+
+---
+
 ### Edge Cases
 
 - What happens when the stream URL becomes unavailable during playback? → Show error overlay with "Retry" and "Next Channel" buttons; stay on current channel until user decides
@@ -193,6 +212,18 @@ As a TV viewer, I want to access a settings menu to manage playlists and prefere
 - **FR-031**: App MUST allow playlist management from settings
 - **FR-032**: App MUST allow clearing/resetting playlist data
 
+**Internationalization (i18n)**
+- **FR-033**: App MUST support English and Chinese (Simplified) languages
+- **FR-034**: App MUST automatically detect and use the device's system language preference
+- **FR-035**: App MUST display all user-facing text (labels, buttons, messages, errors) in the selected language
+- **FR-036**: App MUST fall back to English when system language is not English or Chinese
+- **FR-037**: App MUST use Android resource-based localization (`strings.xml`) for all UI strings
+
+**Observability**
+- **FR-038**: App MUST log errors and critical events in production builds
+- **FR-039**: App MUST enable verbose/debug logging only in debug builds
+- **FR-040**: App MUST NOT log sensitive user data (file paths with usernames, stream URLs with credentials)
+
 ### Key Entities
 
 - **Channel**: Represents a single IPTV stream - has name, number (position in list), stream URL, optional logo URL, optional group/category
@@ -212,6 +243,8 @@ As a TV viewer, I want to access a settings menu to manage playlists and prefere
 - **SC-006**: App remains responsive (no frame drops, no input lag) with playlists up to 1000 channels
 - **SC-007**: Users can complete playlist setup (upload file or enter URL) in under 2 minutes on first use
 - **SC-008**: App uses less than 100MB of memory during normal playback
+- **SC-009**: 100% of user-facing UI text is localized (no hardcoded strings in code)
+- **SC-010**: Chinese-speaking users can complete all tasks without encountering English-only text
 
 ## Clarifications
 
@@ -231,6 +264,15 @@ As a TV viewer, I want to access a settings menu to manage playlists and prefere
 - Q: Maximum channel number input length? → A: 3 digits (supports up to 999 channels)
 - Q: App startup without prior playlist? → A: Welcome/setup screen with clear "Browse Files" button and brief instructions
 - Q: Playlist file change detection on restart? → A: Silently refresh, resume on last-watched channel if it still exists (otherwise first channel)
+
+### Session 2026-01-02
+
+- Q: Which languages to support? → A: English (default) and Chinese Simplified; more languages can be added later
+- Q: In-app language selector? → A: No - follow device system language setting (standard Android behavior)
+- Q: Chinese variant (Simplified vs Traditional)? → A: Simplified Chinese (zh) for initial release; covers mainland China audience
+- Q: Channel names from M3U8 - translate them? → A: No - channel names come from playlist data and remain as-is; only UI chrome is translated
+- Q: Implementation approach? → A: Android resource-based localization using `strings.xml` and `stringResource()` in Compose
+- Q: Observability & logging strategy? → A: Minimal logging - errors and critical events only in production; verbose logging in debug builds
 
 ## Assumptions
 

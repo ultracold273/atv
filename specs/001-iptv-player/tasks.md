@@ -1,8 +1,8 @@
 # Tasks: ATV - Android TV IPTV Player
 
 **Input**: Design documents from `/specs/001-iptv-player/`
-**Prerequisites**: plan.md ✓, spec.md ✓, research.md ✓, data-model.md ✓, quickstart.md ✓
-**Generated**: 2025-12-29
+**Prerequisites**: plan.md ✓, spec.md ✓, research.md ✓, data-model.md ✓, quickstart.md ✓, research-i18n.md ✓
+**Generated**: 2025-12-29 | **Updated**: 2026-01-02 (i18n tasks)
 
 ## Format: `[ID] [P?] [Story?] Description`
 
@@ -178,6 +178,52 @@ Based on plan.md structure:
 
 ---
 
+## Phase 11: User Story 8 - Multi-lingual Support (P3)
+
+**Story Goal**: Support English and Chinese (Simplified) languages based on device locale
+**Independent Test**: Change device language to Chinese, verify all UI text displays in Chinese; change to unsupported language, verify English fallback
+
+### Observability Tasks (Parallel)
+
+- [x] T083 [P] Configure Timber logging with debug/release variants in `app/src/main/kotlin/com/example/atv/AtvApplication.kt`
+- [x] T084 [P] Audit codebase for sensitive data in logs - ensure no PII/credentials logged
+
+### String Resource Audit
+
+- [x] T085 [US8] Audit all Kotlin files for hardcoded strings per `research-i18n.md` findings
+
+### English String Resources
+
+- [x] T086 [US8] Add missing UI labels to `app/src/main/res/values/strings.xml` (Loading, Unknown error, Quick Menu, etc.)
+- [x] T087 [P] [US8] Add missing error messages to `app/src/main/res/values/strings.xml` (Stream errors, Channel not found, etc.)
+- [x] T088 [P] [US8] Add missing button labels to `app/src/main/res/values/strings.xml` (Retry, Cancel, Go, Clear, etc.)
+
+### Chinese Translation
+
+- [x] T089 [US8] Create `app/src/main/res/values-zh/strings.xml` with Chinese Simplified translations
+
+### Migrate UI Strings
+
+- [x] T090 [US8] Replace hardcoded strings in `PlaybackScreen.kt` with `stringResource()` calls
+- [x] T091 [P] [US8] Replace hardcoded strings in `SettingsMenu.kt` with `stringResource()` calls
+- [x] T092 [P] [US8] Replace hardcoded strings in `ErrorOverlay.kt` with `stringResource()` calls
+- [x] T093 [P] [US8] Replace hardcoded strings in `ChannelListOverlay.kt` with `stringResource()` calls
+- [x] T094 [P] [US8] Replace hardcoded strings in `ChannelManagementScreen.kt` with `stringResource()` calls
+- [x] T095 [P] [US8] Replace hardcoded strings in `SetupScreen.kt` with `stringResource()` calls
+- [x] T096 [P] [US8] Replace hardcoded strings in `NumberPadOverlay.kt` with `stringResource()` calls
+
+### Migrate ViewModel/Activity Strings
+
+- [x] T097 [US8] Migrate error messages in `PlaybackViewModel.kt` to use resource IDs
+- [x] T098 [P] [US8] Migrate toast message in `MainActivity.kt` to use string resource
+
+### Locale Testing
+
+- [ ] T099 [US8] Test app with device language set to Chinese - verify all UI displays correctly
+- [ ] T100 [US8] Test app with unsupported language (e.g., French) - verify English fallback works
+
+---
+
 ## Dependencies Summary
 
 ```
@@ -191,6 +237,12 @@ Phase 7 (US3 - Jump): T047-T055 - Depends on T019-T024 (playback working)
 Phase 8 (US7 - Settings): T056-T063 - Depends on T025-T031 (playlist loading working)
 Phase 9 (US5 - Edit): T064-T071 - Depends on T056-T063 (settings working)
 Phase 10 (Polish): T072-T082 - Depends on all user stories
+Phase 11 (US8 - i18n): T083-T100 - Depends on all UI components (Phases 3-9)
+  - T083-T084 (Observability): Can run in parallel with i18n tasks
+  - T085-T088 (Audit + English strings): Sequential prerequisite
+  - T089 (Chinese translation): Depends on T086-T088
+  - T090-T098 (Migration): Can run in parallel after T086-T088
+  - T099-T100 (Testing): Depends on T089-T098
 ```
 
 ## Parallel Execution Opportunities
@@ -208,6 +260,12 @@ Phase 10 (Polish): T072-T082 - Depends on all user stories
 **Within Phase 5-7:**
 - US2 (T032-T037), US6 (T038-T046), US3 (T047-T055) can run in parallel after US1 completes
 
+**Within Phase 11 (i18n):**
+- T083, T084 (Observability) can run in parallel with all i18n tasks
+- T087, T088 can run in parallel after T086 starts
+- T090-T098 (UI/ViewModel migration) can ALL run in parallel after T086-T088 complete
+- Maximum parallelism: 9 tasks (T090-T098) during migration phase
+
 ---
 
 ## Implementation Strategy
@@ -217,7 +275,7 @@ Phase 10 (Polish): T072-T082 - Depends on all user stories
 - Total Tasks: 37 tasks (T001-T037)
 
 **Full Feature Scope**: Complete all phases
-- Total Tasks: 82 tasks
+- Total Tasks: 100 tasks
 
 **Suggested Increments:**
 1. **Increment 1** (Core): Phases 1-4 → Can watch IPTV with loaded playlist
@@ -225,3 +283,4 @@ Phase 10 (Polish): T072-T082 - Depends on all user stories
 3. **Increment 3** (Discovery): Phases 6-7 → Can browse list and jump to channel
 4. **Increment 4** (Management): Phases 8-9 → Can manage playlists and channels
 5. **Increment 5** (Quality): Phase 10 → Production-ready with error handling
+6. **Increment 6** (Internationalization): Phase 11 → Multi-lingual support (EN/ZH)
