@@ -1,7 +1,9 @@
 package com.example.atv.ui.screens.playback
 
+import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.atv.R
 import com.example.atv.domain.model.Channel
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.PreferencesRepository
@@ -26,6 +28,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class PlaybackViewModel @Inject constructor(
+    private val application: Application,
     private val atvPlayer: AtvPlayer,
     private val channelRepository: ChannelRepository,
     private val preferencesRepository: PreferencesRepository,
@@ -147,8 +150,9 @@ class PlaybackViewModel @Inject constructor(
                 playChannel(channel)
                 hideNumberPad()
             } else {
-                // Show error for invalid channel number
-                _uiState.update { it.copy(errorMessage = "Invalid channel number: $number") }
+                // Show error for invalid channel number via Snack bar
+                val errorMessage = application.getString(R.string.error_channel_not_found, number)
+                SnackBarManager.show(errorMessage)
             }
         }
     }
@@ -248,7 +252,7 @@ class PlaybackViewModel @Inject constructor(
                 val channelCount = _uiState.value.channelCount
                 if (number !in 1..channelCount) {
                     // Show snack bar error and clear input
-                    showSnackBar("Channel $number does not exist")
+                    showSnackBar(application.getString(R.string.error_channel_not_found, number))
                     _uiState.update { it.copy(numberPadInput = "") }
                 } else {
                     switchToChannel(number)

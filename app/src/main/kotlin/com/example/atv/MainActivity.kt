@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 // First back press - show hint via app snackbar
                 lastBackPressTime = currentTime
-                SnackBarManager.show("Press back again to exit")
+                SnackBarManager.show(getString(R.string.press_back_to_exit))
             }
         }
         
