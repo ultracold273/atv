@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
@@ -111,7 +113,7 @@ fun SetupScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = "ATV",
+                    text = stringResource(R.string.app_title),
                     style = AtvTypography.displayMedium,
                     color = AtvColors.Primary
                 )
@@ -119,7 +121,7 @@ fun SetupScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "Android TV IPTV Player",
+                    text = stringResource(R.string.app_subtitle),
                     style = AtvTypography.titleLarge,
                     color = AtvColors.OnSurfaceVariant
                 )
@@ -128,7 +130,7 @@ fun SetupScreen(
                 
                 if (uiState.isLoading) {
                     Text(
-                        text = "Loading playlist...",
+                        text = stringResource(R.string.loading_playlist),
                         style = AtvTypography.titleMedium,
                         color = AtvColors.OnSurface
                     )
@@ -142,7 +144,7 @@ fun SetupScreen(
                     
                     // URL input button after error
                     SetupButton(
-                        text = "🔗  Enter Playlist URL",
+                        text = "🔗  " + stringResource(R.string.enter_playlist_url),
                         onClick = {
                             viewModel.dismissError()
                             showUrlInput = true
@@ -151,7 +153,7 @@ fun SetupScreen(
                     )
                 } else {
                     Text(
-                        text = "Select a playlist source",
+                        text = stringResource(R.string.select_playlist_source),
                         style = AtvTypography.bodyLarge,
                         color = AtvColors.OnSurfaceVariant,
                         modifier = Modifier.padding(bottom = 24.dp)
@@ -159,7 +161,7 @@ fun SetupScreen(
                     
                     // URL input button (primary option for Android TV)
                     SetupButton(
-                        text = "🔗  Enter Playlist URL",
+                        text = "🔗  " + stringResource(R.string.enter_playlist_url),
                         onClick = { showUrlInput = true },
                         modifier = Modifier.focusRequester(focusRequester),
                         isPrimary = true
@@ -169,7 +171,7 @@ fun SetupScreen(
                     
                     // Demo playlist button
                     SetupButton(
-                        text = "🎬  Load Demo Playlist",
+                        text = "🎬  " + stringResource(R.string.load_demo_playlist),
                         onClick = { viewModel.loadDemoPlaylist() }
                     )
                     
@@ -177,7 +179,7 @@ fun SetupScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         Text(
-                            text = "Current playlist: ${uiState.channelCount} channels",
+                            text = stringResource(R.string.current_playlist_count, uiState.channelCount),
                             style = AtvTypography.bodyMedium,
                             color = AtvColors.OnSurfaceVariant
                         )
@@ -215,7 +217,7 @@ private fun UrlInputDialog(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Enter Playlist URL",
+            text = stringResource(R.string.enter_playlist_url),
             style = AtvTypography.titleLarge,
             color = AtvColors.OnSurface
         )
@@ -223,7 +225,7 @@ private fun UrlInputDialog(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Enter the URL of your M3U8 playlist",
+            text = stringResource(R.string.enter_url),
             style = AtvTypography.bodyMedium,
             color = AtvColors.OnSurfaceVariant
         )
@@ -260,7 +262,7 @@ private fun UrlInputDialog(
                 ) {
                     if (urlText.isEmpty()) {
                         Text(
-                            text = "https://example.com/playlist.m3u8",
+                            text = stringResource(R.string.playlist_url_hint),
                             style = AtvTypography.bodyLarge,
                             color = AtvColors.OnSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -278,13 +280,13 @@ private fun UrlInputDialog(
             horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
         ) {
             SetupButton(
-                text = "Cancel",
+                text = stringResource(R.string.cancel),
                 onClick = onDismiss,
                 modifier = Modifier.weight(1f)
             )
             
             SetupButton(
-                text = "Load",
+                text = stringResource(R.string.url_load),
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
                 isPrimary = true

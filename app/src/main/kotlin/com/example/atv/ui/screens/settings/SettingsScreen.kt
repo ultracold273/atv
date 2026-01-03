@@ -2,6 +2,10 @@ package com.example.atv.ui.screens.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.res.stringResource
+import com.example.atv.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,9 +55,9 @@ fun SettingsScreen(
     // Clear confirmation dialog
     if (uiState.showClearConfirmation) {
         ConfirmationDialog(
-            title = "Clear All Data?",
-            message = "This will remove all channels and reset preferences. This action cannot be undone.",
-            confirmLabel = "Clear All",
+            title = stringResource(R.string.clear_all_data_title),
+            message = stringResource(R.string.clear_all_data_message),
+            confirmLabel = stringResource(R.string.clear_all),
             onConfirm = { viewModel.clearAllData() },
             onDismiss = { viewModel.dismissDialog() }
         )
@@ -81,7 +85,7 @@ fun SettingsScreen(
         ) {
             // Header
             Text(
-                text = "Settings",
+                text = stringResource(R.string.settings),
                 style = AtvTypography.headlineLarge,
                 color = AtvColors.OnSurface
             )
@@ -97,37 +101,38 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 StatItem(
-                    label = "Channels",
+                    label = stringResource(R.string.channels),
                     value = uiState.channelCount.toString()
                 )
                 StatItem(
-                    label = "Status",
-                    value = if (uiState.channelCount > 0) "Ready" else "No Playlist"
+                    label = stringResource(R.string.status),
+                    value = if (uiState.channelCount > 0) stringResource(R.string.status_ready) else stringResource(R.string.status_no_playlist)
                 )
             }
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Settings options
+            // Settings options (scrollable)
             Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SettingsItem(
-                    title = "Load New Playlist",
-                    subtitle = "Replace current channels with a new M3U/M3U8 file",
+                    title = stringResource(R.string.load_new_playlist),
+                    subtitle = stringResource(R.string.load_new_playlist_subtitle),
                     onClick = onLoadNewPlaylist,
                     modifier = Modifier.focusRequester(focusRequester)
                 )
                 
                 SettingsItem(
-                    title = "Manage Channels",
-                    subtitle = "Add, edit, or delete individual channels",
+                    title = stringResource(R.string.channel_management),
+                    subtitle = stringResource(R.string.manage_channels_subtitle),
                     onClick = onManageChannels
                 )
                 
                 SettingsItem(
-                    title = "Clear All Data",
-                    subtitle = "Remove all channels and reset preferences",
+                    title = stringResource(R.string.clear_all_data),
+                    subtitle = stringResource(R.string.clear_all_data_subtitle),
                     onClick = { viewModel.showClearConfirmation() },
                     isDestructive = true
                 )
@@ -135,8 +140,8 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 SettingsItem(
-                    title = "About",
-                    subtitle = "ATV - Android TV IPTV Player v1.0.0",
+                    title = stringResource(R.string.about),
+                    subtitle = stringResource(R.string.about_subtitle, "1.0.0"),
                     onClick = { viewModel.showAbout() }
                 )
             }
@@ -282,7 +287,7 @@ private fun ConfirmationDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                 ) {
                     DialogButton(
-                        label = "Cancel",
+                        label = stringResource(R.string.cancel),
                         onClick = onDismiss
                     )
                     DialogButton(
@@ -309,7 +314,7 @@ private fun AboutDialog(
         ) {
             Column {
                 Text(
-                    text = "ATV",
+                    text = stringResource(R.string.app_title),
                     style = AtvTypography.headlineLarge,
                     color = AtvColors.Primary
                 )
@@ -317,7 +322,7 @@ private fun AboutDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "Android TV IPTV Player",
+                    text = stringResource(R.string.app_subtitle),
                     style = AtvTypography.titleMedium,
                     color = AtvColors.OnSurface
                 )
@@ -325,7 +330,7 @@ private fun AboutDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = "Version 1.0.0",
+                    text = stringResource(R.string.version, "1.0.0"),
                     style = AtvTypography.bodyMedium,
                     color = AtvColors.OnSurfaceVariant
                 )
@@ -333,9 +338,7 @@ private fun AboutDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "A simple IPTV player for Android TV devices. " +
-                           "Load M3U/M3U8 playlists and watch your favorite channels " +
-                           "with a familiar TV remote experience.",
+                    text = stringResource(R.string.about_description),
                     style = AtvTypography.bodyMedium,
                     color = AtvColors.OnSurfaceVariant
                 )
@@ -347,7 +350,7 @@ private fun AboutDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     DialogButton(
-                        label = "Close",
+                        label = stringResource(R.string.close),
                         onClick = onDismiss
                     )
                 }
