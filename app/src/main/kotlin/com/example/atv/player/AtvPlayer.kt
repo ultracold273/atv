@@ -2,11 +2,16 @@ package com.example.atv.player
 
 import android.content.Context
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.example.atv.domain.model.Channel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +40,7 @@ class AtvPlayer @Inject constructor(
     val player: ExoPlayer?
         get() = exoPlayer
     
+    @OptIn(UnstableApi::class)
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             val channel = currentChannel ?: return
@@ -69,6 +75,59 @@ class AtvPlayer @Inject constructor(
             }
         }
         
+        /**
+         * Log track information when tracks change.
+         * This helps diagnose audio codec issues on different devices.
+         */
+        override fun onTracksChanged(tracks: Tracks) {
+            val channel = currentChannel
+            Timber.d("========== TRACK INFO for: ${channel?.name} ==========")
+            
+            for (group in tracks.groups) {
+                val trackType = when (group.type) {
+                    C.TRACK_TYPE_VIDEO -> "VIDEO"
+                    C.TRACK_TYPE_AUDIO -> "AUDIO"
+                    C.TRACK_TYPE_TEXT -> "TEXT"
+                    else -> "OTHER(${group.type})"
+                }
+                
+                Timber.d("Track Group: $trackType (${group.length} tracks)")
+                
+                for (i in 0 until group.length) {
+                    val format = group.getTrackFormat(i)
+                    val isSelected = group.isTrackSelected(i)
+                    val isSupported = group.isTrackSupported(i)
+                    
+                    val info = buildString {
+                        append("  [$i] ")
+                        append(if (isSelected) "▶ SELECTED" else "  ")
+                        append(if (isSupported) " ✓" else " ✗ UNSUPPORTED")
+                        append(" | codec=${format.codecs ?: format.sampleMimeType}")
+                        
+                        if (group.type == C.TRACK_TYPE_AUDIO) {
+                            append(" | channels=${format.channelCount}")
+                            append(" | sampleRate=${format.sampleRate}")
+                            append(" | bitrate=${format.bitrate}")
+                            format.language?.let { append(" | lang=$it") }
+                        }
+                        
+                        if (group.type == C.TRACK_TYPE_VIDEO) {
+                            append(" | ${format.width}x${format.height}")
+                            append(" | fps=${format.frameRate}")
+                        }
+                    }
+                    Timber.d(info)
+                    
+                    // Extra warning for unsupported codec
+                    if (!isSupported) {
+                        Timber.w("⚠️ UNSUPPORTED $trackType CODEC: ${format.codecs ?: format.sampleMimeType}")
+                        Timber.w("⚠️ This device may not have decoder for this audio format")
+                    }
+                }
+            }
+            Timber.d("========== END TRACK INFO ==========")
+        }
+        
         override fun onPlayerError(error: PlaybackException) {
             val channel = currentChannel
             Timber.e(error, "Player error for channel: ${channel?.name}")
@@ -91,8 +150,26 @@ class AtvPlayer @Inject constructor(
         }
         
         Timber.d("Initializing ExoPlayer")
+        
+        // Configure audio attributes for TV media playback.
+        // This ensures proper audio routing on Android TV devices and
+        // automatically handles audio focus (pausing when other apps need audio).
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+
+        val renderersFactory = DefaultRenderersFactory(context)
+            .setExtensionRendererMode(
+                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+            )
+        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+        
         exoPlayer = ExoPlayer.Builder(context)
+            .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
+            .setRenderersFactory(renderersFactory)
+            .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .apply {
                 addListener(playerListener)
