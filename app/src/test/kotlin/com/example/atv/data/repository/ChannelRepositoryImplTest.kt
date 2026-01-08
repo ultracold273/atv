@@ -4,9 +4,6 @@ import app.cash.turbine.test
 import com.example.atv.TestFixtures
 import com.example.atv.data.local.db.ChannelDao
 import com.example.atv.data.local.db.ChannelEntity
-import com.example.atv.data.local.db.toDomain
-import com.example.atv.data.local.db.toEntity
-import com.example.atv.domain.model.Channel
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.flow.flowOf

@@ -1,9 +1,7 @@
 package com.example.atv.ui.screens.playback
 
 import android.app.Application
-import app.cash.turbine.test
 import com.example.atv.TestFixtures
-import com.example.atv.domain.model.Channel
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.SwitchChannelUseCase
