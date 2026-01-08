@@ -1,6 +1,7 @@
 # ATV - Android TV IPTV Player
 
 [![CI](https://github.com/ultracold273/atv/actions/workflows/ci.yml/badge.svg)](https://github.com/ultracold273/atv/actions/workflows/ci.yml)
+[![Release](https://github.com/ultracold273/atv/actions/workflows/release.yml/badge.svg)](https://github.com/ultracold273/atv/actions/workflows/release.yml)
 
 ATV is a simple, modern IPTV player designed specifically for Android TV. It allows you to watch live TV streams from M3U8 playlists with a user interface optimized for remote control navigation.
 
@@ -101,8 +102,42 @@ The project uses GitHub Actions for continuous integration:
   - Generates coverage reports with Kover
 - **Static Analysis**: Runs Detekt and Android Lint
 - **Security Scan**: Weekly OWASP dependency check (also on main branch pushes)
+- **Auto-Tag**: Creates version tags when version changes are merged to main
+- **Release**: Triggered by version tags (`v*`)
+  - Builds signed release APK (when signing secrets configured)
+  - Uploads APK as artifact
+  - Creates GitHub Release with APK attached
 
 All CI artifacts (test results, coverage reports, lint reports) are uploaded and available in GitHub Actions.
+
+### Creating a Release
+
+Releases are automated via PR workflow:
+
+1. **Update version** in `gradle.properties`:
+   ```properties
+   VERSION_MAJOR=1
+   VERSION_MINOR=1
+   VERSION_PATCH=0
+   ```
+
+2. **Create a PR** with the version bump and merge to `main`
+
+3. **Automatic release** - CI will:
+   - Detect the version change in `gradle.properties`
+   - Create and push tag `v1.1.0`
+   - Build signed release APK
+   - Create GitHub Release with APK attached
+
+#### Manual Tag (Alternative)
+
+If you prefer manual control:
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+For signing setup, see [docs/SIGNING.md](docs/SIGNING.md).
 
 ## 🏗️ Tech Stack
 

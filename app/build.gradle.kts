@@ -9,6 +9,18 @@ plugins {
     alias(libs.plugins.owasp.dependency.check)
 }
 
+// ===========================================
+// Version Configuration (from gradle.properties)
+// ===========================================
+val versionMajor = (project.findProperty("VERSION_MAJOR") as String?)?.toIntOrNull() ?: 1
+val versionMinor = (project.findProperty("VERSION_MINOR") as String?)?.toIntOrNull() ?: 0
+val versionPatch = (project.findProperty("VERSION_PATCH") as String?)?.toIntOrNull() ?: 0
+
+// versionCode formula: MAJOR * 10000 + MINOR * 100 + PATCH
+// Supports up to version 214.74.83 (max Int is 2147483647)
+val computedVersionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
+val computedVersionName = "$versionMajor.$versionMinor.$versionPatch"
+
 android {
     namespace = "com.example.atv"
     compileSdk = 35
@@ -17,10 +29,35 @@ android {
         applicationId = "com.example.atv"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = computedVersionCode
+        versionName = computedVersionName
+
+        // Set APK filename: atv-{versionName}-{buildType}.apk
+        setProperty("archivesBaseName", "atv-$computedVersionName")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // ===========================================
+    // Signing Configuration
+    // ===========================================
+    signingConfigs {
+        create("release") {
+            // Read from environment variables (for CI) or local properties
+            val keystorePath = System.getenv("KEYSTORE_PATH")
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+            val keyAliasValue = System.getenv("KEY_ALIAS")
+            val keyPasswordValue = System.getenv("KEY_PASSWORD")
+
+            // Only configure signing if all values are present
+            if (keystorePath != null && keystorePassword != null && 
+                keyAliasValue != null && keyPasswordValue != null) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
     }
 
     buildTypes {
@@ -30,6 +67,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            
+            // Use release signing if configured, otherwise build unsigned
+            val releaseSigningConfig = signingConfigs.findByName("release")
+            if (releaseSigningConfig?.storeFile != null) {
+                signingConfig = releaseSigningConfig
+            }
         }
     }
 
