@@ -102,6 +102,7 @@ The project uses GitHub Actions for continuous integration:
   - Generates coverage reports with Kover
 - **Static Analysis**: Runs Detekt and Android Lint
 - **Security Scan**: Weekly OWASP dependency check (also on main branch pushes)
+- **Auto-Tag**: Creates version tags when version changes are merged to main
 - **Release**: Triggered by version tags (`v*`)
   - Builds signed release APK (when signing secrets configured)
   - Uploads APK as artifact
@@ -111,23 +112,30 @@ All CI artifacts (test results, coverage reports, lint reports) are uploaded and
 
 ### Creating a Release
 
-1. Update version in `gradle.properties`:
+Releases are automated via PR workflow:
+
+1. **Update version** in `gradle.properties`:
    ```properties
    VERSION_MAJOR=1
    VERSION_MINOR=1
    VERSION_PATCH=0
    ```
 
-2. Commit and tag:
-   ```bash
-   git add gradle.properties
-   git commit -m "chore: Bump version to 1.1.0"
-   git tag v1.1.0
-   git push origin main
-   git push origin v1.1.0
-   ```
+2. **Create a PR** with the version bump and merge to `main`
 
-3. The release workflow will automatically build and publish the APK.
+3. **Automatic release** - CI will:
+   - Detect the version change in `gradle.properties`
+   - Create and push tag `v1.1.0`
+   - Build signed release APK
+   - Create GitHub Release with APK attached
+
+#### Manual Tag (Alternative)
+
+If you prefer manual control:
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
 
 For signing setup, see [docs/SIGNING.md](docs/SIGNING.md).
 
