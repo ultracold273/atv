@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kover)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.owasp.dependency.check)
 }
 
 android {
@@ -42,6 +45,14 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        lintConfig = file("$rootDir/config/lint.xml")
+        xmlReport = true
+        htmlReport = true
+        abortOnError = false  // Warn only, don't fail build
+        checkDependencies = true
     }
 }
 
@@ -95,4 +106,91 @@ dependencies {
     testImplementation(libs.junit5)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.room.testing)
+    
+    // Android Instrumented Testing (E2E)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
+    debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// JUnit 5 configuration with XML reporting
+tasks.withType<Test> {
+    useJUnitPlatform()
+    
+    // Generate JUnit XML reports for CI consumption
+    reports {
+        junitXml.required.set(true)
+        html.required.set(true)
+    }
+    
+    // Better test output
+    testLogging {
+        events("passed", "skipped", "failed")
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
+    }
+}
+
+// Kover configuration for code coverage
+kover {
+    reports {
+        filters {
+            excludes {
+                // Exclude generated code
+                classes(
+                    "*_Factory*",
+                    "*_HiltModules*",
+                    "*Hilt_*",
+                    "*_Impl*",
+                    "*_Dao_Impl*",
+                    "*ComposableSingletons*",
+                    "*BuildConfig*",
+                    "*_MembersInjector*"
+                )
+                packages(
+                    "hilt_aggregated_deps",
+                    "dagger.hilt.internal.aggregatedroot.codegen"
+                )
+            }
+        }
+    }
+}
+
+// Detekt configuration
+detekt {
+    config.setFrom(files("$rootDir/config/detekt.yml"))
+    buildUponDefaultConfig = true
+    allRules = false
+}
+
+// OWASP Dependency Check configuration
+dependencyCheck {
+    // Fail build only on Critical vulnerabilities (CVSS >= 9.0)
+    failBuildOnCVSS = 9.0f
+    
+    // Suppress false positives if needed
+    suppressionFile = "$rootDir/config/owasp-suppressions.xml"
+    
+    // Output formats
+    formats = listOf("HTML", "JSON")
+    
+    // Only analyze runtime dependencies
+    skipConfigurations = listOf(
+        "lintClassPath",
+        "debugAndroidTestCompileClasspath",
+        "releaseCompileClasspath"
+    )
+    
+    // NVD API configuration (optional - improves scan speed)
+    nvd {
+        // To use NVD API, set OWASP_NVD_API_KEY environment variable
+        apiKey = System.getenv("OWASP_NVD_API_KEY") ?: ""
+    }
 }

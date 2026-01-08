@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.domain.model.Channel
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.util.UrlValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,6 +61,12 @@ class ChannelManagementViewModel @Inject constructor(
             return
         }
         
+        // Validate URL for security
+        if (!UrlValidator.isValidScheme(url.trim())) {
+            _uiState.update { it.copy(errorMessage = "Invalid URL. Only http, https, and rtsp are allowed.") }
+            return
+        }
+        
         viewModelScope.launch {
             val newChannel = Channel(
                 number = number,
@@ -75,10 +82,22 @@ class ChannelManagementViewModel @Inject constructor(
     // ==================== Edit Channel ====================
     
     fun showEditDialog(channel: Channel) {
-        _uiState.update { it.copy(editingChannel = channel) }
+        _uiState.update { 
+            it.copy(
+                editingChannel = channel,
+                editName = channel.name,
+                editUrl = channel.streamUrl
+            ) 
+        }
     }
     
     fun updateChannel(channel: Channel) {
+        // Validate URL for security
+        if (!UrlValidator.isValidScheme(channel.streamUrl)) {
+            _uiState.update { it.copy(errorMessage = "Invalid URL. Only http, https, and rtsp are allowed.") }
+            return
+        }
+        
         viewModelScope.launch {
             channelRepository.updateChannel(channel)
             dismissDialog()

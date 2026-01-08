@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Weekly security scan on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    # Allow manual trigger for security scans
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Run unit tests
+        run: ./gradlew test --no-daemon
+
+      - name: Generate coverage report
+        run: ./gradlew koverHtmlReport --no-daemon
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            app/build/test-results/
+            app/build/reports/tests/
+          retention-days: 14
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: app/build/reports/kover/
+          retention-days: 14
+
+      - name: Test Summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: 'app/build/test-results/**/TEST-*.xml'
+
+  lint:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run Detekt
+        run: ./gradlew detekt --no-daemon
+        continue-on-error: true
+
+      - name: Run Android Lint
+        run: ./gradlew lint --no-daemon
+        continue-on-error: true
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: |
+            app/build/reports/detekt/
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.xml
+          retention-days: 14
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    # Run on schedule, manual trigger, or main branch pushes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run OWASP Dependency Check
+        run: ./gradlew dependencyCheckAnalyze --no-daemon
+        env:
+          OWASP_NVD_API_KEY: ${{ secrets.OWASP_NVD_API_KEY }}
+        continue-on-error: false
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: |
+            app/build/reports/dependency-check-report.html
+            app/build/reports/dependency-check-report.json
+          retention-days: 30
+
+      - name: Check for Critical CVEs
+        if: failure()
+        run: |
+          echo "::error::Critical vulnerabilities (CVSS >= 9.0) found in dependencies!"
+          echo "Review the security report artifact for details."
+          exit 1

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Android Lint Configuration for ATV Android TV App -->
+<!-- Security-focused checks per FR-021 -->
+<lint>
+    <!-- Treat errors as errors, warnings as warnings -->
+    <issue id="AllErrors" severity="error" />
+    
+    <!-- Security Checks (Priority) -->
+    <issue id="SetJavaScriptEnabled" severity="error" />
+    <issue id="HardcodedDebugMode" severity="error" />
+    <issue id="AllowBackup" severity="warning" />
+    <issue id="ExportedContentProvider" severity="error" />
+    <issue id="ExportedReceiver" severity="warning" />
+    <issue id="ExportedService" severity="warning" />
+    <issue id="GrantAllUris" severity="error" />
+    <issue id="WorldReadableFiles" severity="error" />
+    <issue id="WorldWriteableFiles" severity="error" />
+    <issue id="SecureRandom" severity="error" />
+    <issue id="TrustAllX509TrustManager" severity="error" />
+    <issue id="UnprotectedSMSBroadcastReceiver" severity="error" />
+    <issue id="UnsafeProtectedBroadcastReceiver" severity="error" />
+    
+    <!-- Network Security -->
+    <issue id="UsesCleartextTraffic" severity="warning" />
+    <issue id="InsecureBaseConfiguration" severity="warning" />
+    
+    <!-- Code Quality -->
+    <issue id="UnusedResources" severity="warning" />
+    <issue id="UnusedAttribute" severity="warning" />
+    <issue id="Deprecated" severity="warning" />
+    <issue id="NewApi" severity="error" />
+    <issue id="InlinedApi" severity="warning" />
+    <issue id="Override" severity="error" />
+    <issue id="MissingPermission" severity="error" />
+    
+    <!-- Performance -->
+    <issue id="ObsoleteLayoutParam" severity="warning" />
+    <issue id="MergeRootFrame" severity="warning" />
+    <issue id="UseCompoundDrawables" severity="warning" />
+    <issue id="UselessParent" severity="warning" />
+    
+    <!-- Accessibility (for TV - limited but still important) -->
+    <issue id="ContentDescription" severity="warning" />
+    
+    <!-- Internationalization -->
+    <issue id="HardcodedText" severity="warning" />
+    <issue id="SetTextI18n" severity="warning" />
+    
+    <!-- Ignore generated code paths -->
+    <issue id="all">
+        <ignore path="**/build/**" />
+        <ignore path="**/generated/**" />
+    </issue>
+</lint>
