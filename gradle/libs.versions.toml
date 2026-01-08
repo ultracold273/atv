@@ -31,9 +31,9 @@ navigationCompose = "2.8.5"
 timber = "5.0.1"
 
 # Testing
-junit5 = "5.11.3"
-mockk = "1.13.14"
-turbine = "1.2.0"
+junit5 = "6.0.2"
+mockk = "1.14.7"
+turbine = "1.2.1"
 coroutinesTest = "1.10.1"
 roomTesting = "2.8.4"
 androidxTestRunner = "1.6.2"
