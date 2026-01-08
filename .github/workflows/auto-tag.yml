@@ -1,0 +1,59 @@
+name: Auto Tag Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'gradle.properties'  # Only trigger when version file changes
+
+jobs:
+  create-tag:
+    name: Create Version Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to create tags
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Need full history to check existing tags
+
+      - name: Extract version from gradle.properties
+        id: version
+        run: |
+          MAJOR=$(grep "VERSION_MAJOR=" gradle.properties | cut -d'=' -f2)
+          MINOR=$(grep "VERSION_MINOR=" gradle.properties | cut -d'=' -f2)
+          PATCH=$(grep "VERSION_PATCH=" gradle.properties | cut -d'=' -f2)
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          TAG="v${VERSION}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION (tag: $TAG)"
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.version.outputs.TAG }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.TAG }} already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag ${{ steps.version.outputs.TAG }} does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.TAG }}" -m "Release ${{ steps.version.outputs.VERSION }}"
+          git push origin "${{ steps.version.outputs.TAG }}"
+          echo "✅ Created and pushed tag: ${{ steps.version.outputs.TAG }}"
+
+      - name: Skip tag creation
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "⏭️ Skipping tag creation - ${{ steps.version.outputs.TAG }} already exists"
+          echo "This is expected when merging PRs that don't change the version."
