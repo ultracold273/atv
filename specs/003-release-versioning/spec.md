@@ -69,6 +69,20 @@ As a developer, I want release builds to be configured for signing so that APKs 
 2. **Given** signing credentials are stored as environment variables/secrets, **When** CI builds release, **Then** signing succeeds without exposing credentials in logs
 3. **Given** no signing configuration is present locally, **When** building release, **Then** build succeeds with unsigned APK (for development purposes)
 
+**CI Signing Implementation Details**:
+
+GitHub Secrets required:
+- `RELEASE_KEYSTORE_BASE64`: Base64-encoded `.jks` keystore file
+- `RELEASE_KEYSTORE_PASSWORD`: Password to access the keystore
+- `RELEASE_KEY_ALIAS`: Alias name for the signing key
+- `RELEASE_KEY_PASSWORD`: Password for the signing key
+
+CI workflow will:
+1. Decode base64 keystore to temporary file
+2. Set environment variables for Gradle signing config
+3. Build signed release APK
+4. Clean up keystore file after build
+
 ---
 
 ### Edge Cases
