@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.LoadPlaylistUseCase
+import com.example.atv.util.UrlValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -143,8 +144,15 @@ class SetupViewModel @Inject constructor(
         }
         
         val trimmedUrl = url.trim()
-        if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
-            _uiState.update { it.copy(errorMessage = "URL must start with http:// or https://") }
+        
+        // Validate URL using UrlValidator for security
+        val validationResult = UrlValidator.validate(trimmedUrl)
+        validationResult.onFailure { error ->
+            val message = when (error) {
+                is SecurityException -> "Blocked URL scheme for security"
+                else -> "Invalid URL: ${error.message}"
+            }
+            _uiState.update { it.copy(errorMessage = message) }
             return
         }
         

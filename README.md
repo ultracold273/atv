@@ -1,5 +1,7 @@
 # ATV - Android TV IPTV Player
 
+[![CI](https://github.com/ultracold273/atv/actions/workflows/ci.yml/badge.svg)](https://github.com/ultracold273/atv/actions/workflows/ci.yml)
+
 ATV is a simple, modern IPTV player designed specifically for Android TV. It allows you to watch live TV streams from M3U8 playlists with a user interface optimized for remote control navigation.
 
 ## 📺 Features
@@ -67,6 +69,40 @@ To test local streams (e.g., udpxy) on the emulator:
 1. Ensure your local server allows cleartext traffic (configured in `network_security_config.xml`).
 2. Use `adb reverse tcp:PORT tcp:PORT` to forward ports if needed.
 3. Use `10.0.2.2` to access the host machine's localhost.
+
+### Running Tests
+
+```bash
+# Run unit tests
+./studio-gradlew test
+
+# Run unit tests with coverage report
+./studio-gradlew koverHtmlReport
+# View report at: app/build/reports/kover/html/index.html
+
+# Run E2E tests on emulator (requires Android TV emulator running)
+./studio-gradlew connectedAndroidTest
+
+# Run static analysis
+./studio-gradlew detekt lint
+
+# Run security scan (OWASP dependency check)
+./studio-gradlew dependencyCheckAnalyze
+# View report at: app/build/reports/dependency-check-report.html
+```
+
+### CI/CD
+
+The project uses GitHub Actions for continuous integration:
+
+- **Build & Test**: Runs on every push and PR
+  - Compiles the project
+  - Runs unit tests with JUnit 5
+  - Generates coverage reports with Kover
+- **Static Analysis**: Runs Detekt and Android Lint
+- **Security Scan**: Weekly OWASP dependency check (also on main branch pushes)
+
+All CI artifacts (test results, coverage reports, lint reports) are uploaded and available in GitHub Actions.
 
 ## 🏗️ Tech Stack
 

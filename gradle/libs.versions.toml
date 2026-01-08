@@ -34,6 +34,16 @@ timber = "5.0.1"
 junit5 = "5.11.3"
 mockk = "1.13.14"
 turbine = "1.2.0"
+coroutinesTest = "1.10.1"
+roomTesting = "2.8.4"
+androidxTestRunner = "1.6.2"
+androidxTestExt = "1.2.1"
+hiltTesting = "2.54"
+
+# Code Quality
+kover = "0.9.1"
+detekt = "1.23.7"
+owaspDependencyCheck = "12.0.1"
 
 [libraries]
 # AndroidX Core
@@ -85,6 +95,15 @@ timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 junit5 = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit5" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+room-testing = { module = "androidx.room:room-testing", version.ref = "roomTesting" }
+
+# Android Instrumented Testing
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
+androidx-test-ext = { module = "androidx.test.ext:junit", version.ref = "androidxTestExt" }
+compose-ui-test = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+hilt-android-testing = { module = "com.google.dagger:hilt-android-testing", version.ref = "hiltTesting" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -92,3 +111,6 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+owasp-dependency-check = { id = "org.owasp.dependencycheck", version.ref = "owaspDependencyCheck" }
