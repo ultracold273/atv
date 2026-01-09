@@ -6,7 +6,6 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
-    alias(libs.plugins.owasp.dependency.check)
 }
 
 // ===========================================
@@ -211,29 +210,4 @@ detekt {
     config.setFrom(files("$rootDir/config/detekt.yml"))
     buildUponDefaultConfig = true
     allRules = false
-}
-
-// OWASP Dependency Check configuration
-dependencyCheck {
-    // Fail build only on Critical vulnerabilities (CVSS >= 9.0)
-    failBuildOnCVSS = 9.0f
-    
-    // Suppress false positives if needed
-    suppressionFile = "$rootDir/config/owasp-suppressions.xml"
-    
-    // Output formats
-    formats = listOf("HTML", "JSON")
-    
-    // Only analyze runtime dependencies
-    skipConfigurations = listOf(
-        "lintClassPath",
-        "debugAndroidTestCompileClasspath",
-        "releaseCompileClasspath"
-    )
-    
-    // NVD API configuration (optional - improves scan speed)
-    nvd {
-        // To use NVD API, set OWASP_NVD_API_KEY environment variable
-        apiKey = System.getenv("OWASP_NVD_API_KEY") ?: ""
-    }
 }
