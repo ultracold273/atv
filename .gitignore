@@ -8,6 +8,11 @@ build/
 .idea/
 *.hprof
 local.properties
+signing.properties
+
+# Keystore files (never commit)
+*.jks
+*.keystore
 
 # Build outputs
 *.apk

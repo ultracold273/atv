@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -42,19 +44,31 @@ android {
     // ===========================================
     signingConfigs {
         create("release") {
-            // Read from environment variables (for CI) or local properties
-            val keystorePath = System.getenv("KEYSTORE_PATH")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-            val keyAliasValue = System.getenv("KEY_ALIAS")
-            val keyPasswordValue = System.getenv("KEY_PASSWORD")
+            // Try to load from signing.properties file first (for local builds)
+            val signingPropsFile = rootProject.file("signing.properties")
+            if (signingPropsFile.exists()) {
+                val signingProps = Properties().apply {
+                    signingPropsFile.inputStream().use { load(it) }
+                }
+                
+                storeFile = file(signingProps.getProperty("KEYSTORE_PATH"))
+                storePassword = signingProps.getProperty("KEYSTORE_PASSWORD")
+                keyAlias = signingProps.getProperty("KEY_ALIAS")
+                keyPassword = signingProps.getProperty("KEY_PASSWORD")
+            } else {
+                // Fall back to environment variables (for CI)
+                val keystorePath = System.getenv("KEYSTORE_PATH")
+                val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+                val keyAliasValue = System.getenv("KEY_ALIAS")
+                val keyPasswordValue = System.getenv("KEY_PASSWORD")
 
-            // Only configure signing if all values are present
-            if (keystorePath != null && keystorePassword != null && 
-                keyAliasValue != null && keyPasswordValue != null) {
-                storeFile = file(keystorePath)
-                storePassword = keystorePassword
-                keyAlias = keyAliasValue
-                keyPassword = keyPasswordValue
+                if (keystorePath != null && keystorePassword != null && 
+                    keyAliasValue != null && keyPasswordValue != null) {
+                    storeFile = file(keystorePath)
+                    storePassword = keystorePassword
+                    keyAlias = keyAliasValue
+                    keyPassword = keyPasswordValue
+                }
             }
         }
     }
