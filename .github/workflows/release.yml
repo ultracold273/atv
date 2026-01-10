@@ -2,8 +2,10 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'  # Trigger on version tags like v1.0.0, v1.2.3
+    branches:
+      - main
+    paths:
+      - 'gradle.properties'  # Trigger when version file changes
   workflow_dispatch:
     inputs:
       sign_release:
@@ -17,44 +19,80 @@ env:
   GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
 
 jobs:
-  build-release:
-    name: Build Release APK
+  release:
+    name: Tag, Build & Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to create tags and releases
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history to check existing tags
 
+      # ===========================================
+      # Version Detection & Tag Creation
+      # ===========================================
+      - name: Extract version from gradle.properties
+        id: version
+        run: |
+          MAJOR=$(grep "VERSION_MAJOR=" gradle.properties | cut -d'=' -f2)
+          MINOR=$(grep "VERSION_MINOR=" gradle.properties | cut -d'=' -f2)
+          PATCH=$(grep "VERSION_PATCH=" gradle.properties | cut -d'=' -f2)
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          TAG="v${VERSION}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION (tag: $TAG)"
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.version.outputs.TAG }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.TAG }} already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag ${{ steps.version.outputs.TAG }} does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip if tag exists (on push trigger)
+        if: github.event_name == 'push' && steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "⏭️ Skipping release - tag ${{ steps.version.outputs.TAG }} already exists"
+          echo "This is expected when merging PRs that don't change the version."
+          exit 0
+
+      # ===========================================
+      # Build Environment Setup
+      # ===========================================
       - name: Setup JDK 17
+        if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
 
       - name: Setup Android SDK
+        if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
         uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
+        if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
 
       - name: Make gradlew executable
+        if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
         run: chmod +x ./gradlew
-
-      - name: Extract version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        id: version
-        run: |
-          TAG=${GITHUB_REF#refs/tags/v}
-          echo "VERSION=$TAG" >> $GITHUB_OUTPUT
-          echo "Building release version: $TAG"
 
       # ===========================================
       # Signing Configuration
       # ===========================================
       - name: Decode keystore
-        if: ${{ github.event.inputs.sign_release != 'false' }}
+        if: (steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch') && github.event.inputs.sign_release != 'false'
         id: decode_keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -78,9 +116,12 @@ jobs:
       # Build Release APK
       # ===========================================
       - name: Build release APK
+        if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Verify APK was built
+        if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
+        id: verify_apk
         run: |
           APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           if [ -z "$APK_PATH" ]; then
@@ -89,10 +130,12 @@ jobs:
           fi
           echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
           echo "APK_NAME=$(basename $APK_PATH)" >> $GITHUB_ENV
+          echo "apk_built=true" >> $GITHUB_OUTPUT
           echo "Built APK: $APK_PATH"
           ls -la app/build/outputs/apk/release/
 
       - name: Check if APK is signed
+        if: steps.verify_apk.outputs.apk_built == 'true'
         run: |
           if command -v apksigner &> /dev/null; then
             apksigner verify --print-certs "$APK_PATH" 2>&1 || echo "APK is unsigned (expected for builds without signing secrets)"
@@ -101,23 +144,51 @@ jobs:
           fi
 
       # ===========================================
+      # Create Tag (only for new versions)
+      # ===========================================
+      - name: Create and push tag
+        if: github.event_name == 'push' && steps.check_tag.outputs.exists == 'false' && steps.verify_apk.outputs.apk_built == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.TAG }}" -m "Release ${{ steps.version.outputs.VERSION }}"
+          git push origin "${{ steps.version.outputs.TAG }}"
+          echo "✅ Created and pushed tag: ${{ steps.version.outputs.TAG }}"
+
+      # ===========================================
       # Upload Artifacts
       # ===========================================
       - name: Upload release APK
+        if: steps.verify_apk.outputs.apk_built == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk-${{ steps.version.outputs.VERSION || 'manual' }}
+          name: release-apk-${{ steps.version.outputs.VERSION }}
           path: app/build/outputs/apk/release/*.apk
           retention-days: 90
           if-no-files-found: error
 
       - name: Upload mapping file (if exists)
+        if: steps.verify_apk.outputs.apk_built == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: mapping-${{ steps.version.outputs.VERSION || 'manual' }}
+          name: mapping-${{ steps.version.outputs.VERSION }}
           path: app/build/outputs/mapping/release/mapping.txt
           retention-days: 90
           if-no-files-found: ignore
+
+      # ===========================================
+      # Create GitHub Release
+      # ===========================================
+      - name: Create GitHub Release
+        if: steps.verify_apk.outputs.apk_built == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.TAG }}
+          name: Release ${{ steps.version.outputs.TAG }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-alpha') || contains(steps.version.outputs.VERSION, '-beta') || contains(steps.version.outputs.VERSION, '-rc') }}
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
 
       # ===========================================
       # Cleanup
@@ -127,38 +198,3 @@ jobs:
         run: |
           rm -f ${{ runner.temp }}/release-keystore.jks
           echo "Keystore cleaned up"
-
-  # ===========================================
-  # Create GitHub Release (optional)
-  # ===========================================
-  create-release:
-    name: Create GitHub Release
-    needs: build-release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    
-    permissions:
-      contents: write
-    
-    steps:
-      - name: Download release APK
-        uses: actions/download-artifact@v4
-        with:
-          name: release-apk-${{ github.ref_name }}
-          path: ./release-apk
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          echo "TAG=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.TAG }}
-          name: Release ${{ steps.version.outputs.TAG }}
-          draft: false
-          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
-          files: ./release-apk/*.apk
-          generate_release_notes: true

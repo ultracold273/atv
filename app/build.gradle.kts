@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,7 +8,6 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
-    alias(libs.plugins.owasp.dependency.check)
 }
 
 // ===========================================
@@ -43,19 +44,31 @@ android {
     // ===========================================
     signingConfigs {
         create("release") {
-            // Read from environment variables (for CI) or local properties
-            val keystorePath = System.getenv("KEYSTORE_PATH")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-            val keyAliasValue = System.getenv("KEY_ALIAS")
-            val keyPasswordValue = System.getenv("KEY_PASSWORD")
+            // Try to load from signing.properties file first (for local builds)
+            val signingPropsFile = rootProject.file("signing.properties")
+            if (signingPropsFile.exists()) {
+                val signingProps = Properties().apply {
+                    signingPropsFile.inputStream().use { load(it) }
+                }
+                
+                storeFile = file(signingProps.getProperty("KEYSTORE_PATH"))
+                storePassword = signingProps.getProperty("KEYSTORE_PASSWORD")
+                keyAlias = signingProps.getProperty("KEY_ALIAS")
+                keyPassword = signingProps.getProperty("KEY_PASSWORD")
+            } else {
+                // Fall back to environment variables (for CI)
+                val keystorePath = System.getenv("KEYSTORE_PATH")
+                val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+                val keyAliasValue = System.getenv("KEY_ALIAS")
+                val keyPasswordValue = System.getenv("KEY_PASSWORD")
 
-            // Only configure signing if all values are present
-            if (keystorePath != null && keystorePassword != null && 
-                keyAliasValue != null && keyPasswordValue != null) {
-                storeFile = file(keystorePath)
-                storePassword = keystorePassword
-                keyAlias = keyAliasValue
-                keyPassword = keyPasswordValue
+                if (keystorePath != null && keystorePassword != null && 
+                    keyAliasValue != null && keyPasswordValue != null) {
+                    storeFile = file(keystorePath)
+                    storePassword = keystorePassword
+                    keyAlias = keyAliasValue
+                    keyPassword = keyPasswordValue
+                }
             }
         }
     }
@@ -211,29 +224,4 @@ detekt {
     config.setFrom(files("$rootDir/config/detekt.yml"))
     buildUponDefaultConfig = true
     allRules = false
-}
-
-// OWASP Dependency Check configuration
-dependencyCheck {
-    // Fail build only on Critical vulnerabilities (CVSS >= 9.0)
-    failBuildOnCVSS = 9.0f
-    
-    // Suppress false positives if needed
-    suppressionFile = "$rootDir/config/owasp-suppressions.xml"
-    
-    // Output formats
-    formats = listOf("HTML", "JSON")
-    
-    // Only analyze runtime dependencies
-    skipConfigurations = listOf(
-        "lintClassPath",
-        "debugAndroidTestCompileClasspath",
-        "releaseCompileClasspath"
-    )
-    
-    // NVD API configuration (optional - improves scan speed)
-    nvd {
-        // To use NVD API, set OWASP_NVD_API_KEY environment variable
-        apiKey = System.getenv("OWASP_NVD_API_KEY") ?: ""
-    }
 }

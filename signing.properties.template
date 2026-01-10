@@ -1,0 +1,8 @@
+# Signing Configuration for Local Builds
+# Copy this file to signing.properties and fill in your values
+# DO NOT commit signing.properties to git!
+
+KEYSTORE_PATH=/path/to/your/release-keystore.jks
+KEYSTORE_PASSWORD=your_keystore_password
+KEY_ALIAS=atv-release
+KEY_PASSWORD=your_key_password

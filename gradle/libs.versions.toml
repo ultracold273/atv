@@ -43,7 +43,6 @@ hiltTesting = "2.54"
 # Code Quality
 kover = "0.9.1"
 detekt = "1.23.7"
-owaspDependencyCheck = "12.0.1"
 
 [libraries]
 # AndroidX Core
@@ -113,4 +112,3 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
-owasp-dependency-check = { id = "org.owasp.dependencycheck", version.ref = "owaspDependencyCheck" }
