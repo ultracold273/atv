@@ -80,7 +80,7 @@ jobs:
 
       - name: Setup Gradle
         if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
 
