@@ -69,7 +69,7 @@ jobs:
       # ===========================================
       - name: Setup JDK 17
         if: steps.check_tag.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
