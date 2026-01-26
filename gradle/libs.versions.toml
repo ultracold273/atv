@@ -36,7 +36,7 @@ mockk = "1.13.14"
 turbine = "1.2.0"
 coroutinesTest = "1.10.1"
 roomTesting = "2.8.4"
-androidxTestRunner = "1.6.2"
+androidxTestRunner = "1.7.0"
 androidxTestExt = "1.2.1"
 hiltTesting = "2.54"
 
