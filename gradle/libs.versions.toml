@@ -5,8 +5,8 @@ agp = "8.7.3"
 ksp = "2.1.0-1.0.29"
 
 # Compose
-composeBom = "2024.12.01"
-tvFoundation = "1.0.0-alpha12"
+composeBom = "2026.03.00"
+tvFoundation = "1.0.0-beta01"
 tvMaterial = "1.0.1"
 
 # Media
