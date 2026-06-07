@@ -25,19 +25,27 @@ The plan has 4 phases, each independently committable:
 
 ## Phase 1: Domain models & dependencies
 
-### Task 1: Add OkHttp + MockWebServer dependencies
+### Task 1: Add OkHttp, MockWebServer, and kotlinx.serialization dependencies
 
 **Files:**
 - Modify: `gradle/libs.versions.toml`
 - Modify: `app/build.gradle.kts`
+- Modify: `build.gradle.kts` (root)
 
-- [ ] **Step 1: Add version + library entries to `libs.versions.toml`**
+This task adds three things:
+- OkHttp + MockWebServer (for the CTC HTTP client and its tests).
+- `kotlinx.serialization` runtime + Kotlin compiler plugin (the project's new standard for JSON parsing — chosen over `org.json` because the Android `org.json` ships as JVM-test stubs that throw `RuntimeException("Stub!")`, and over hand-rolling because we expect more JSON consumers in spec 005+).
+
+- [ ] **Step 1: Add version + library + plugin entries to `libs.versions.toml`**
 
 In `gradle/libs.versions.toml`, add under `[versions]`:
 
 ```toml
 # Networking
 okhttp = "4.12.0"
+
+# Serialization (JSON)
+kotlinxSerialization = "1.7.3"
 ```
 
 Add under `[libraries]`:
@@ -46,27 +54,55 @@ Add under `[libraries]`:
 # Networking
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
+
+# Serialization (JSON)
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 ```
 
-- [ ] **Step 2: Reference the new libs in `app/build.gradle.kts`**
+Add under `[plugins]` (matching the existing `kotlin` version, since the serialization compiler plugin is versioned with the Kotlin compiler):
+
+```toml
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+```
+
+- [ ] **Step 2: Apply the serialization plugin in `app/build.gradle.kts`**
+
+Open `app/build.gradle.kts` and find the `plugins {` block at the top. Add:
+
+```kotlin
+alias(libs.plugins.kotlin.serialization)
+```
 
 In the `dependencies {` block, add:
 
 ```kotlin
 implementation(libs.okhttp)
+implementation(libs.kotlinx.serialization.json)
 testImplementation(libs.okhttp.mockwebserver)
 ```
 
-- [ ] **Step 3: Verify the build succeeds**
+- [ ] **Step 3: Declare the plugin in the root `build.gradle.kts`**
+
+If the root `build.gradle.kts` has a `plugins {}` block declaring `apply false` for other plugins (check the file), add:
+
+```kotlin
+alias(libs.plugins.kotlin.serialization) apply false
+```
+
+If the root has no such block (some projects skip it), this step is a no-op — the plugin is applied directly in the app module.
+
+- [ ] **Step 4: Verify the build succeeds**
 
 Run: `./studio-gradlew assembleDebug`
 Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 4: Commit**
+If you see `Unresolved reference: kotlinx.serialization`, the plugin alias is missing from `app/build.gradle.kts` — recheck Step 2.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add gradle/libs.versions.toml app/build.gradle.kts
-git commit -m "build(004): add okhttp and mockwebserver dependencies"
+git add gradle/libs.versions.toml app/build.gradle.kts build.gradle.kts
+git commit -m "build(004): add okhttp, mockwebserver, kotlinx.serialization deps"
 ```
 
 ---
@@ -509,6 +545,7 @@ import com.example.atv.EpgFixtures
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Test
 
 class CtcAuthenticatorTest {
@@ -532,8 +569,21 @@ class CtcAuthenticatorTest {
 
     @Test
     fun `buildAuthenticator with fixed rand matches python golden hex`() {
-        // Skip if fixture hasn't been regenerated yet (see EpgFixtures.kt header for command).
-        if (EpgFixtures.GOLDEN_AUTHENTICATOR_HEX.isEmpty()) return
+        // GATE: this test is the ONLY byte-for-byte verification that the Kotlin
+        // 3DES port matches the python reference. It MUST fail loudly when the
+        // golden fixture has not been regenerated yet — silently skipping defeats
+        // the entire point of porting cryptography.
+        //
+        // To regenerate the fixture: see Task 6 Step 0 in this plan, or the header
+        // of EpgFixtures.kt. After regeneration, GOLDEN_AUTHENTICATOR_HEX will be
+        // non-empty and this test runs the byte-match assertion.
+        Assumptions.assumeFalse(
+            EpgFixtures.GOLDEN_AUTHENTICATOR_HEX.isEmpty(),
+            "Golden 3DES fixture not regenerated yet — run the python command in " +
+                "EpgFixtures.kt's header comment, paste the outputs into GOLDEN_RAND " +
+                "and GOLDEN_AUTHENTICATOR_HEX, then re-run this test. Until then, " +
+                "the Kotlin port is UNVERIFIED against the reference implementation."
+        )
 
         val hex = CtcAuthenticator.buildAuthenticatorWithRand(
             userId = EpgFixtures.USER_ID,
@@ -882,17 +932,19 @@ class CtcResponseParsersTest {
     }
 
     @Test
-    fun `parsePrograms tolerates BOM-prefixed JSON`() {
-        val json = "﻿{\"channelPrevue\":[]}"
+    fun `parsePrograms ignores unknown top-level fields`() {
+        val json = """{"channelPrevue":[],"recommendation":"ignore me","totalCount":0}"""
         assertTrue(CtcResponseParsers.parsePrograms(json).isEmpty())
     }
 
     @Test
-    fun `parsePrograms tolerates trailing markup after the JSON object`() {
+    fun `parsePrograms ignores unknown program fields`() {
         val json = """
-            <!--cache-->{"channelPrevue":[{"prevuecode":"p","prevuename":"X",
-            "begintime":"20260607080000","endtime":"20260607083000",
-            "isLive":"0","isBack":"0","isRecord":"0"}]}<!--end-->
+            {"channelPrevue":[{
+              "prevuecode":"p","prevuename":"X","begintime":"20260607080000",
+              "endtime":"20260607083000","isLive":"0","isBack":"0","isRecord":"0",
+              "isFuture":"1","poster":"http://example.com/p.jpg"
+            }]}
         """.trimIndent()
         val programs = CtcResponseParsers.parsePrograms(json)
         assertEquals(1, programs.size)
@@ -905,8 +957,42 @@ class CtcResponseParsersTest {
     }
 
     @Test
-    fun `parsePrograms returns empty list when JSON is unrecoverable`() {
-        assertTrue(CtcResponseParsers.parsePrograms("not json at all").isEmpty())
+    fun `parsePrograms throws SerializationException when input is not JSON`() {
+        // Non-JSON input (e.g. an HTML login page returned because the session expired)
+        // is the caller's responsibility to detect via Content-Type before calling this
+        // function. We do NOT silently extract embedded JSON — that hid bugs in the
+        // python reference.
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            CtcResponseParsers.parsePrograms("<html>session expired</html>")
+        }
+    }
+
+    @Test
+    fun `parsePrograms throws SerializationException when channelPrevue field is missing`() {
+        // Top-level shape errors fail the whole fetch — there's no recovery.
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            CtcResponseParsers.parsePrograms("""{"otherKey":[]}""")
+        }
+    }
+
+    @Test
+    fun `parsePrograms skips individual rows with unparseable timestamps`() {
+        // Per-row parse errors (e.g. a single program with a bad begintime) should NOT
+        // poison the entire fetch — the rest of the schedule is still useful to the user.
+        val json = """
+            {"channelPrevue":[
+              {"prevuecode":"good","prevuename":"OK","begintime":"20260607080000",
+               "endtime":"20260607083000","isLive":"0","isBack":"0","isRecord":"0"},
+              {"prevuecode":"bad","prevuename":"BadTime","begintime":"NOT-A-TIMESTAMP",
+               "endtime":"20260607093000","isLive":"0","isBack":"0","isRecord":"0"},
+              {"prevuecode":"also_good","prevuename":"OK2","begintime":"20260607100000",
+               "endtime":"20260607103000","isLive":"0","isBack":"0","isRecord":"0"}
+            ]}
+        """.trimIndent()
+        val programs = CtcResponseParsers.parsePrograms(json)
+        assertEquals(2, programs.size)
+        assertEquals("good", programs[0].code)
+        assertEquals("also_good", programs[1].code)
     }
 
     @Test
@@ -940,20 +1026,28 @@ Create `app/src/main/kotlin/com/example/atv/data/epg/CtcResponseParsers.kt`:
 package com.example.atv.data.epg
 
 import com.example.atv.domain.model.Program
-import org.json.JSONException
-import org.json.JSONObject
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 
 /**
  * Pure parsing helpers for CTC HTML/JS/JSON responses.
  *
- * Ports the regexes and JSON conventions from
- * `~/Documents/itv-reverse/iptv_client.py` lines 221-282 and the `Program.from_json`
- * mapping (lines 180-191).
+ * Ports the regexes from `~/Documents/itv-reverse/iptv_client.py` lines 221-228
+ * and the `Program.from_json` field mapping (lines 180-191).
+ *
+ * JSON parsing is STRICT (no tolerance for HTML/JS wrappers): non-JSON input
+ * throws [kotlinx.serialization.SerializationException]. Detecting "got HTML
+ * instead of JSON" (e.g. a session-expired login page) is the caller's job —
+ * see [CtcEpgProvider]'s Content-Type check, which converts that case into a
+ * re-login trigger rather than silently falling back.
+ *
+ * Per-program parse failures (e.g. one row with an unparseable timestamp) are
+ * SILENTLY SKIPPED — a single bad show should not blank the entire schedule.
  *
  * Threading: stateless; safe to call from any thread.
  */
@@ -968,6 +1062,24 @@ object CtcResponseParsers {
     )
 
     private val TIMESTAMP_COMPACT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+
+    // Local DTOs that match the wire format. Kept private — the rest of the app
+    // sees only the domain-layer [Program].
+    @Serializable
+    private data class PrevueResponse(
+        @SerialName("channelPrevue") val channelPrevue: List<PrevueEntry>,
+    )
+
+    @Serializable
+    private data class PrevueEntry(
+        @SerialName("prevuecode") val code: String = "",
+        @SerialName("prevuename") val name: String = "",
+        @SerialName("begintime") val begin: String = "",
+        @SerialName("endtime") val end: String = "",
+        @SerialName("isLive") val isLive: String = "0",
+        @SerialName("isBack") val isBack: String = "0",
+        @SerialName("isRecord") val isRecord: String = "0",
+    )
 
     fun parseEncryToken(html: String): String? =
         RE_ENCRY_TOKEN.find(html)?.groupValues?.get(1)
@@ -1001,62 +1113,40 @@ object CtcResponseParsers {
     }
 
     /**
-     * Parse a `prevue_list.jsp` response into [Program]s.
-     *
-     * Tolerates HTML/JS wrapping by locating the first '{' and using a relaxed JSON parse,
-     * mirroring `_loads_lenient` from the Python reference (lines 265-282).
-     * Returns an empty list when no JSON object can be recovered.
+     * Parse a `prevue_list.jsp` response body (already verified to be JSON by the caller)
+     * into [Program]s. Throws [kotlinx.serialization.SerializationException] on shape
+     * errors (no `channelPrevue` array, malformed JSON). Per-row parse errors (e.g. bad
+     * timestamp on one program) are skipped silently; only the bad row is dropped.
      */
     fun parsePrograms(jsonText: String): List<Program> {
-        val obj = lenientJsonObject(jsonText) ?: return emptyList()
-        val arr = obj.optJSONArray("channelPrevue") ?: return emptyList()
-        val out = ArrayList<Program>(arr.length())
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            out += Program(
-                code = o.optString("prevuecode", ""),
-                name = o.optString("prevuename", ""),
-                start = parseTimestamp(o.optString("begintime", "")),
-                end = parseTimestamp(o.optString("endtime", "")),
-                isLive = o.optString("isLive") == "1",
-                isReplayable = o.optString("isBack") == "1" || o.optString("isRecord") == "1",
-            )
+        val response = AppJson.decodeFromString<PrevueResponse>(jsonText)
+        return response.channelPrevue.mapNotNull { entry ->
+            runCatching {
+                Program(
+                    code = entry.code,
+                    name = entry.name,
+                    start = parseTimestamp(entry.begin),
+                    end = parseTimestamp(entry.end),
+                    isLive = entry.isLive == "1",
+                    isReplayable = entry.isBack == "1" || entry.isRecord == "1",
+                )
+            }.getOrNull()
         }
-        return out
     }
+}
 
-    private fun lenientJsonObject(text: String): JSONObject? {
-        try {
-            return JSONObject(text)
-        } catch (_: JSONException) {
-            // fall through
-        } catch (_: DateTimeParseException) {
-            return null
-        }
-        val start = text.indexOf('{')
-        if (start < 0) return null
-        // Walk from `start` forward, tracking depth, to find the matching '}'.
-        var depth = 0
-        var inString = false
-        var escape = false
-        for (i in start until text.length) {
-            val c = text[i]
-            when {
-                escape -> escape = false
-                inString && c == '\\' -> escape = true
-                inString && c == '"' -> inString = false
-                !inString && c == '"' -> inString = true
-                !inString && c == '{' -> depth++
-                !inString && c == '}' -> {
-                    depth--
-                    if (depth == 0) {
-                        return runCatching { JSONObject(text.substring(start, i + 1)) }.getOrNull()
-                    }
-                }
-            }
-        }
-        return null
-    }
+/**
+ * Project-wide [Json] configuration. Provided as a Hilt singleton from [AppModule];
+ * exposed here as a top-level fallback so the parser can be unit-tested without DI.
+ *
+ *   - `ignoreUnknownKeys = true`  — forward-compat: server adds a field, we don't crash.
+ *   - `isLenient = false`         — strict input shape; broken JSON is broken JSON.
+ *   - `coerceInputValues = false` — don't paper over null-vs-missing-vs-wrong-type bugs.
+ */
+internal val AppJson: Json = Json {
+    ignoreUnknownKeys = true
+    isLenient = false
+    coerceInputValues = false
 }
 ```
 
@@ -1070,7 +1160,7 @@ Expected: PASS, 18 tests.
 ```bash
 git add app/src/main/kotlin/com/example/atv/data/epg/CtcResponseParsers.kt \
         app/src/test/kotlin/com/example/atv/data/epg/CtcResponseParsersTest.kt
-git commit -m "feat(004): add CtcResponseParsers (regex + JSON helpers)"
+git commit -m "feat(004): add CtcResponseParsers (kotlinx.serialization + regex helpers)"
 ```
 
 ---
@@ -1738,7 +1828,9 @@ class CtcEpgProviderTest {
 
     @Test
     fun `fetchPrograms returns failure on malformed JSON after retry`() = runTest(StandardTestDispatcher()) {
-        server.enqueue(MockResponse().setBody("garbage"))
+        // Strict JSON parsing (since the kotlinx.serialization pivot): malformed JSON is
+        // a hard failure, not silently mapped to empty success. Retry only fires on
+        // IOException / 5xx — a 200 with garbage body fails on the first try.
         server.enqueue(MockResponse().setBody("garbage"))
         coEvery { authClient.login() } returns successLogin()
         val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
@@ -1746,12 +1838,33 @@ class CtcEpgProviderTest {
 
         val deferred = async { provider.fetchPrograms("ch1", 0) }
         advanceTimeBy(2_000)
-        // Malformed JSON parses to empty programs (lenient parser); we treat empty payload as success.
-        // The retry path is exercised only on IOException / 5xx; this asserts the success-with-empty
-        // contract that the python reference also returns.
         val result = deferred.await()
-        assertTrue(result.isSuccess)
-        assertEquals(0, result.getOrNull()!!.size)
+        assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun `fetchPrograms triggers re-login when response is HTML (session expired)`() = runTest(StandardTestDispatcher()) {
+        // The CTC server returns an HTML login page (instead of JSON) when the JSESSIONID
+        // has expired. We detect this via Content-Type and treat it as a session-expired
+        // signal: invalidate the cached session, re-login, retry once. This is the
+        // diagnosis-not-silent-fallback path that replaced the python reference's
+        // _loads_lenient hack.
+        server.enqueue(
+            MockResponse()
+                .setBody("<html><body>Login expired</body></html>")
+                .addHeader("Content-Type", "text/html; charset=utf-8")
+        )
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin() andThen successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        val deferred = async { provider.fetchPrograms("ch1", 0) }
+        advanceTimeBy(2_000)
+        val result = deferred.await()
+        assertTrue(result.isSuccess, "got $result")
+        assertEquals(2, server.requestCount)
+        coVerify(exactly = 2) { authClient.login() }
     }
 
     @Test
@@ -1879,14 +1992,23 @@ class CtcEpgProvider @Inject constructor(
             } catch (e: Throwable) {
                 Timber.d(e, "CTC fetchPrograms failed for %s/%d", channelCode, dateOffset)
                 Result.failure(e)
-            } finally {
-                releaseMutex(key)
             }
+            // NOTE: the keyMutex is intentionally NOT removed from the map after use.
+            // Removing it would race with concurrent callers that already obtained the
+            // same Mutex reference but haven't entered withLock yet — they'd be left
+            // waiting on an orphaned Mutex while a third caller getOrPuts a fresh one.
+            // Keeping mutex entries in the map until the provider is GC'd costs ~few
+            // bytes per unique (channelCode, dateOffset) pair; bounded by the LRU cache
+            // size in practice, which is itself bounded.
         }
     }
 
     private suspend fun ensureSession(): LoginResult.Success {
         session?.let { return it }
+        return relogin()
+    }
+
+    private suspend fun relogin(): LoginResult.Success {
         val r = authClient.login()
         if (r is LoginResult.Success) {
             session = r
@@ -1902,18 +2024,29 @@ class CtcEpgProvider @Inject constructor(
     ): List<Program> {
         return runCatching { fetchOnce(sess, channelCode, dateOffset) }
             .recoverCatching { first ->
-                if (first.isRetryable()) {
-                    delay(RETRY_DELAY_MS)
-                    fetchOnce(sess, channelCode, dateOffset)
-                } else {
-                    throw first
+                when {
+                    first is SessionExpiredException -> {
+                        // HTML received instead of JSON — JSESSIONID went stale on the server.
+                        // Invalidate the cached session, re-login, retry once. This is the
+                        // diagnosis-not-silent-fallback path that replaces the python ref's
+                        // _loads_lenient embedded-JSON extraction hack.
+                        session = null
+                        val freshSession = relogin()
+                        fetchOnce(freshSession, channelCode, dateOffset)
+                    }
+                    first.isRetryable() -> {
+                        delay(RETRY_DELAY_MS)
+                        fetchOnce(sess, channelCode, dateOffset)
+                    }
+                    else -> throw first
                 }
             }
             .getOrThrow()
     }
 
     private fun Throwable.isRetryable(): Boolean =
-        this is IOException || this is RetryableHttpException
+        this is IOException && this !is SessionExpiredException ||
+            this is RetryableHttpException
 
     private fun fetchOnce(
         sess: LoginResult.Success,
@@ -1931,6 +2064,13 @@ class CtcEpgProvider @Inject constructor(
             }
             if (!resp.isSuccessful) {
                 throw IOException("prevue_list HTTP ${resp.code}")
+            }
+            // Detect the "session expired → server returned an HTML login page" case
+            // BEFORE handing the body to the strict JSON parser. We sniff the Content-Type
+            // header rather than the body to avoid a chicken-and-egg with very small JSON.
+            val contentType = resp.header("Content-Type").orEmpty()
+            if (contentType.startsWith("text/html", ignoreCase = true)) {
+                throw SessionExpiredException("Got Content-Type=$contentType — assuming JSESSIONID expired")
             }
             val body = resp.body?.string().orEmpty()
             return CtcResponseParsers.parsePrograms(body)
@@ -1978,14 +2118,6 @@ class CtcEpgProvider @Inject constructor(
         }
     }
 
-    private fun releaseMutex(key: CacheKey) {
-        synchronized(mutexLock) {
-            // Only remove if no one is waiting; with one-shot single-flight per key,
-            // simply removing is safe: callers that arrived before us already passed withLock.
-            keyMutexes.remove(key)
-        }
-    }
-
     private companion object {
         const val DEFAULT_MAX_ENTRIES = 100
         const val RETRY_DELAY_MS = 1_500L
@@ -1993,6 +2125,7 @@ class CtcEpgProvider @Inject constructor(
     }
 
     private class RetryableHttpException(val code: Int) : IOException("HTTP $code")
+    private class SessionExpiredException(message: String) : IOException(message)
 }
 
 /** Tiny LRU on top of LinkedHashMap (access-order). Synchronized externally by caller. */
@@ -2398,13 +2531,14 @@ Add the observer method (place it near `observePlayerState`):
 ```kotlin
 private fun observeEpgFlags() {
     viewModelScope.launch {
+        var wasShowing = false
         combine(
             preferencesRepository.getUserPreferences().map { it.epgEnabled },
             epgProvider.isConfigured
         ) { epgEnabled, epgConfigured -> epgEnabled to epgConfigured }
             .collect { (epgEnabled, epgConfigured) ->
+                val show = epgEnabled && epgConfigured
                 _uiState.update { state ->
-                    val show = epgEnabled && epgConfigured
                     if (show) {
                         state.copy(epgEnabled = epgEnabled, epgConfigured = epgConfigured)
                     } else {
@@ -2418,6 +2552,15 @@ private fun observeEpgFlags() {
                         )
                     }
                 }
+                // FR-025: when EPG transitions from hidden to shown, trigger a fetch
+                // for the currently-active channel so the user sees data immediately.
+                // (Practically inert in 004 because epgConfigured is permanently false,
+                // but the transition logic is exercised in PlaybackViewModelEpgTest
+                // when the test flips both flags.)
+                if (!wasShowing && show) {
+                    _uiState.value.currentChannel?.let { loadBannerEpgFor(it) }
+                }
+                wasShowing = show
             }
     }
 }
@@ -2846,6 +2989,13 @@ Add the loader:
 
 ```kotlin
 private fun loadPanelEpg(channel: Channel, channelCode: String, dateOffset: Int) {
+    // FR-019 + FR-030: if EPG surfaces are hidden (toggle off OR provider unconfigured),
+    // do NOT issue a fetch and do NOT render an error. The panel won't be shown anyway.
+    // This guard protects against debounced focus events fired while the toggle was on
+    // but settling AFTER the toggle flipped off — without it, the user could see a
+    // brief "Unable to load programs" flash.
+    if (!_uiState.value.showEpgSurfaces) return
+
     panelEpgJob?.cancel()
     _uiState.update {
         it.copy(
@@ -2887,6 +3037,35 @@ private fun loadPanelEpg(channel: Channel, channelCode: String, dateOffset: Int)
             }
         )
     }
+}
+```
+
+- [ ] **Step 3b: Override `showChannelList()` to reset the date offset (FR-009)**
+
+The existing `showChannelList()` lives in `PlaybackViewModel.kt` and looks like:
+
+```kotlin
+fun showChannelList() {
+    _uiState.update { it.copy(showChannelList = true, showChannelInfo = false) }
+    startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideChannelList() }
+}
+```
+
+Replace it with the version that resets the date offset and the panel state to "Today" every time the overlay opens, per FR-009 ("Today MUST be selected every time the channel list overlay opens, regardless of which tab was last selected in a prior overlay session"):
+
+```kotlin
+fun showChannelList() {
+    // FR-009: always reset to Today when reopening the channel list. The user picking
+    // Yesterday/Tomorrow is a within-session affordance and MUST NOT persist.
+    dateOffsetFlow.value = 0
+    _uiState.update {
+        it.copy(
+            showChannelList = true,
+            showChannelInfo = false,
+            epgPanel = it.epgPanel.copy(dateOffset = 0)
+        )
+    }
+    startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideChannelList() }
 }
 ```
 
@@ -3214,12 +3393,16 @@ fun EpgPanel(
         )
 
         when {
+            // FR-014: if the channel has no EPG mapping at all, there is nothing to load
+            // and nothing to wait for — never show "Loading..." or "Unable to load"; just
+            // tell the user no guide exists for this channel. This branch must fire BEFORE
+            // the loading/error/empty branches so that a stray transient state (e.g. a
+            // loading spinner from a previously-focused channel) cannot leak through.
+            channel.channelCode == null ->
+                CenteredText(stringResource(R.string.epg_unavailable_for_channel))
             state.isLoading -> CenteredText(stringResource(R.string.epg_loading))
             state.errorMessage != null -> CenteredText(state.errorMessage)
-            state.isEmpty && channel.channelCode == null ->
-                CenteredText(stringResource(R.string.epg_unavailable_for_channel))
-            state.isEmpty ->
-                CenteredText(stringResource(R.string.epg_no_programs))
+            state.isEmpty -> CenteredText(stringResource(R.string.epg_no_programs))
             else -> ProgramList(
                 programs = state.programs,
                 currentTime = currentTime
@@ -4045,20 +4228,25 @@ git commit -m "feat(004): add Show program guide toggle to Settings screen"
 
 ---
 
-### Task 19: Provide `Clock` via Hilt
+### Task 19: Provide `Clock` and `Json` via Hilt
 
 **Files:**
 - Modify: `app/src/main/kotlin/com/example/atv/di/AppModule.kt`
 
-- [ ] **Step 1: Add the `Clock` import**
+`AppModule` is the right home for project-wide singletons that are not feature-specific. Two singletons are added here:
+- `Clock` — used by `PlaybackViewModel` (Phase 3) and `CtcEpgProvider` (Phase 2).
+- `Json` — the project's standard JSON configuration. Used by `CtcResponseParsers` (Phase 2) directly via a top-level fallback; future JSON consumers (spec 005 channel import, etc.) should `@Inject Json` instead of constructing their own. Lives in `AppModule` (not `EpgModule`) precisely so it's discoverable as a project-wide convention.
 
-In `app/src/main/kotlin/com/example/atv/di/AppModule.kt`, add this import alongside the existing imports:
+- [ ] **Step 1: Add the imports**
+
+In `app/src/main/kotlin/com/example/atv/di/AppModule.kt`, add these imports alongside the existing ones:
 
 ```kotlin
+import kotlinx.serialization.json.Json
 import java.time.Clock
 ```
 
-- [ ] **Step 2: Add the `provideClock` provider**
+- [ ] **Step 2: Add the `provideClock` and `provideJson` providers**
 
 In the same file, replace the body of `object AppModule` with:
 
@@ -4078,21 +4266,40 @@ object AppModule {
     @Provides
     @Singleton
     fun provideClock(): Clock = Clock.systemDefaultZone()
+
+    /**
+     * Project-wide [Json] configuration. Inject this rather than constructing your own
+     * `Json {}` block — keeping a single configuration prevents subtle parser-vs-parser
+     * drift across features.
+     *
+     *   - `ignoreUnknownKeys = true`  — forward-compat: server adds a field, we don't crash.
+     *   - `isLenient = false`         — strict input shape; broken JSON is broken JSON.
+     *   - `coerceInputValues = false` — don't paper over null-vs-missing-vs-wrong-type bugs.
+     */
+    @Provides
+    @Singleton
+    fun provideJson(): Json = Json {
+        ignoreUnknownKeys = true
+        isLenient = false
+        coerceInputValues = false
+    }
 }
 ```
 
-This single binding satisfies both `PlaybackViewModel`'s `Clock` constructor parameter (added in Phase 3) and `CtcEpgProvider`'s `Clock` parameter (added in Phase 2). Tests that need a deterministic clock construct their own `Clock.fixed(...)` and never touch this provider.
+The `Clock` binding satisfies both `PlaybackViewModel`'s `Clock` constructor parameter (Phase 3) and `CtcEpgProvider`'s `Clock` parameter (Phase 2). Tests that need a deterministic clock construct their own `Clock.fixed(...)` and never touch this provider.
+
+The `Json` binding matches the `AppJson` top-level used by `CtcResponseParsers` in Phase 2; in production both refer to the same configuration, so behavior is identical. The top-level `AppJson` exists so the parser is unit-testable without DI; the Hilt-provided `Json` is what gets injected into runtime collaborators.
 
 - [ ] **Step 3: Verify build**
 
 Run: `./studio-gradlew assembleDebug`
-Expected: `BUILD SUCCESSFUL`. Hilt's annotation processor will emit a fresh `AppModule_ProvideClockFactory` under `app/build/generated/`.
+Expected: `BUILD SUCCESSFUL`. Hilt's annotation processor will emit fresh `AppModule_ProvideClockFactory` and `AppModule_ProvideJsonFactory` under `app/build/generated/`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add app/src/main/kotlin/com/example/atv/di/AppModule.kt
-git commit -m "feat(004): provide java.time.Clock singleton via Hilt"
+git commit -m "feat(004): provide Clock and Json singletons via Hilt"
 ```
 
 ---
@@ -4250,6 +4457,11 @@ git commit -m "feat(004): provide sentinel DeviceProfile and authServer for Hilt
 
 This task locks in three end-to-end invariants with a single integration test, then walks the engineer through manual verification on a debug device.
 
+**Important notes on the integration test below:**
+- The real `Channel` data class (existing in 004, NOT modified by this spec) has fields `(number, name, streamUrl, groupTitle, logoUrl)`. There is NO `id`, `url`, `groupName`, or `channelCode` on the data class. EPG channelCode is exposed via the temporary nullable extension property introduced in Phase 3 Task 12, which always returns `null` in 004.
+- The real `PlaybackViewModel` constructor (after Phase 3) is `(application, atvPlayer, channelRepository, preferencesRepository, switchChannelUseCase, epgProvider, clock)` — preserving all five existing pre-004 params and APPENDING the two new ones.
+- The real public method to switch channels is `switchToChannel(number: Int)` or `playChannel(channel: Channel)`. To drive a fetch with a non-null channelCode in 004, the only path is the `internal` test seam `loadBannerEpgForCode(channel, channelCode)` introduced in Phase 3 Task 12.
+
 - [ ] **Step 1: Write the integration test**
 
 Create `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgIntegrationTest.kt`:
@@ -4257,19 +4469,22 @@ Create `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewMode
 ```kotlin
 package com.example.atv.ui.screens.playback
 
-import app.cash.turbine.test
-import com.example.atv.TestFixtures
+import android.app.Application
 import com.example.atv.domain.model.Channel
 import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
+import com.example.atv.player.PlayerState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -4294,36 +4509,48 @@ import java.time.ZoneId
 @DisplayName("PlaybackViewModel EPG end-to-end integration")
 class PlaybackViewModelEpgIntegrationTest {
 
+    private lateinit var application: Application
+    private lateinit var atvPlayer: AtvPlayer
     private lateinit var channelRepository: ChannelRepository
     private lateinit var preferencesRepository: PreferencesRepository
-    private lateinit var player: AtvPlayer
+    private lateinit var switchChannelUseCase: SwitchChannelUseCase
     private lateinit var epgProvider: EpgProvider
     private lateinit var isConfiguredFlow: MutableStateFlow<Boolean>
+    private lateinit var playerStateFlow: MutableStateFlow<PlayerState>
 
     private val testDispatcher = StandardTestDispatcher()
     private val fixedNow = Instant.parse("2026-06-07T12:00:00Z")
     private val fixedClock = Clock.fixed(fixedNow, ZoneId.of("UTC"))
 
-    private val channelWithCode = Channel(
-        id = "ch-1",
+    // Uses the REAL Channel fields. There is no `channelCode` on Channel in 004 —
+    // it's exposed via an extension property that always returns null. Tests that
+    // need a non-null channelCode use the `loadBannerEpgForCode` test seam below.
+    private val sampleChannel = Channel(
         number = 1,
         name = "CCTV-1",
-        url = "http://example.com/cctv1.m3u8",
-        groupName = "CCTV",
-        channelCode = "CCTV1HD"
+        streamUrl = "http://example.com/cctv1.m3u8",
+        groupTitle = "CCTV",
+        logoUrl = null,
     )
 
     @BeforeEach
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        application = mockk(relaxed = true)
+        atvPlayer = mockk(relaxed = true)
         channelRepository = mockk(relaxed = true)
         preferencesRepository = mockk(relaxed = true)
-        player = mockk(relaxed = true)
+        switchChannelUseCase = mockk(relaxed = true)
         epgProvider = mockk(relaxed = true)
         isConfiguredFlow = MutableStateFlow(false)
+        playerStateFlow = MutableStateFlow<PlayerState>(PlayerState.Idle)
 
         every { epgProvider.isConfigured } returns isConfiguredFlow
-        every { channelRepository.getAllChannels() } returns flowOf(listOf(channelWithCode))
+        every { atvPlayer.playerState } returns playerStateFlow
+        every { atvPlayer.initialize() } just runs
+        every { atvPlayer.playChannel(any()) } just runs
+        every { channelRepository.getAllChannels() } returns flowOf(listOf(sampleChannel))
+        every { preferencesRepository.getLastChannelNumber() } returns flowOf(1)
     }
 
     @AfterEach
@@ -4336,15 +4563,17 @@ class PlaybackViewModelEpgIntegrationTest {
             UserPreferences(
                 playlistFilePath = "/test/playlist.m3u8",
                 lastChannelNumber = 1,
-                epgEnabled = epgEnabled
+                epgEnabled = epgEnabled,
             )
         )
         return PlaybackViewModel(
+            application = application,
+            atvPlayer = atvPlayer,
             channelRepository = channelRepository,
             preferencesRepository = preferencesRepository,
-            player = player,
+            switchChannelUseCase = switchChannelUseCase,
             epgProvider = epgProvider,
-            clock = fixedClock
+            clock = fixedClock,
         )
     }
 
@@ -4355,8 +4584,8 @@ class PlaybackViewModelEpgIntegrationTest {
         val vm = createViewModel(epgEnabled = false)
         advanceUntilIdle()
 
-        // When
-        vm.switchToChannel(channelWithCode)
+        // When — playChannel is the production path triggered by switchToChannel(Int)
+        vm.playChannel(sampleChannel)
         advanceTimeBy(500)
         advanceUntilIdle()
 
@@ -4372,7 +4601,7 @@ class PlaybackViewModelEpgIntegrationTest {
         advanceUntilIdle()
 
         // When
-        vm.switchToChannel(channelWithCode)
+        vm.playChannel(sampleChannel)
         advanceTimeBy(500)
         advanceUntilIdle()
 
@@ -4381,7 +4610,7 @@ class PlaybackViewModelEpgIntegrationTest {
     }
 
     @Test
-    fun `epg enabled and configured with channelCode - fetches once and propagates programs`() = runTest {
+    fun `epg enabled, configured, with channelCode via test seam - fetches once and propagates programs`() = runTest {
         // Given
         val current = Program(
             code = "p-now",
@@ -4389,7 +4618,7 @@ class PlaybackViewModelEpgIntegrationTest {
             start = Instant.parse("2026-06-07T11:30:00Z"),
             end = Instant.parse("2026-06-07T12:30:00Z"),
             isLive = true,
-            isReplayable = false
+            isReplayable = false,
         )
         val next = Program(
             code = "p-next",
@@ -4397,7 +4626,7 @@ class PlaybackViewModelEpgIntegrationTest {
             start = Instant.parse("2026-06-07T12:30:00Z"),
             end = Instant.parse("2026-06-07T13:00:00Z"),
             isLive = false,
-            isReplayable = false
+            isReplayable = false,
         )
         coEvery {
             epgProvider.fetchPrograms("CCTV1HD", 0)
@@ -4407,8 +4636,12 @@ class PlaybackViewModelEpgIntegrationTest {
         val vm = createViewModel(epgEnabled = true)
         advanceUntilIdle()
 
-        // When
-        vm.switchToChannel(channelWithCode)
+        // When — drive the fetch directly with an explicit channelCode via the
+        // internal Phase 3 test seam. In 004, Channel.channelCode (extension) is
+        // always null, so the production switchToChannel/playChannel path never
+        // reaches the provider; this seam is the ONLY way to exercise the populated
+        // state until 005 puts channelCode on the data class.
+        vm.loadBannerEpgForCode(sampleChannel, "CCTV1HD")
         advanceTimeBy(500)
         advanceUntilIdle()
 
@@ -4426,7 +4659,9 @@ class PlaybackViewModelEpgIntegrationTest {
 - [ ] **Step 2: Run the integration test**
 
 Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgIntegrationTest"`
-Expected: PASS, 3 tests. If a test fails because `PlaybackViewModel`'s constructor signature differs (e.g., `clock` parameter named differently), align the test call site with whatever Phase 3 produced — do NOT change the production code to fit the test.
+Expected: PASS, 3 tests.
+
+If a test fails to compile because the `PlaybackViewModel` constructor signature differs from what's documented above (e.g., `clock` parameter named differently, or the `internal` test seam `loadBannerEpgForCode` exists under a different name), update the test to match what Phase 3 actually produced. The PRODUCTION code is the source of truth; this test must conform to it, not vice versa.
 
 - [ ] **Step 3: Run full unit test + static analysis suite**
 
