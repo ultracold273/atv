@@ -4424,11 +4424,25 @@ fun provideDeviceProfile(): DeviceProfile = DeviceProfile(
 )
 
 /**
- * The China Telecom EPG operator endpoint. Hardcoded in 004 because the
- * sentinel profile means no request is ever sent. 005 may move this
- * to a configurable preference once an operator-selection UI exists.
+ * The China Telecom EPG operator endpoint. Hardcoded in 004 ONLY because
+ * the sentinel [DeviceProfile] above means no request is ever sent
+ * (`CtcEpgProvider.isConfigured` stays `false` for the entire 004 lifetime).
  *
- * NOTE: This URL is NOT contacted in 004 (isConfigured == false).
+ * SECURITY / PRIVACY GUARDRAIL — 005 MUST address this before flipping
+ * `isConfigured` to true:
+ *   - This URL points at a real third-party telecom operator. Shipping a
+ *     public APK that auto-contacts it the moment a user enables EPG would
+ *     leak the user's existence to that operator without consent.
+ *   - 005's authentication UI must move this string behind a user-entered
+ *     setting (DataStore `iptv_auth_server`, exposed in Settings) before
+ *     any code path can actually open a connection to it.
+ *   - The provider below stays as a Hilt default for 004 only because no
+ *     code path reaches it; if you are working on 005 and this provider
+ *     still exists, replace it with a `Flow<String>` sourced from
+ *     `PreferencesRepository.getIptvAuthServer()`.
+ *
+ * NOTE: This URL is NOT contacted in 004 (`isConfigured == false`).
+ * TODO(005): move behind a user-entered preference before enabling login.
  */
 @Provides
 @Singleton
@@ -4668,7 +4682,24 @@ If a test fails to compile because the `PlaybackViewModel` constructor signature
 Run: `./studio-gradlew detekt lint test`
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Build a debug APK and install on an emulator or Android TV device**
+- [ ] **Step 4: Codify the "tests never touch the network" invariant**
+
+The spec 004 test suite — every test under `app/src/test/` — is required to run with **zero outbound network traffic**. Every HTTP-touching unit in this spec routes traffic through MockWebServer; the integration test mocks `EpgProvider` directly; the parsers operate on hard-coded string literals. No test should ever resolve a real hostname or open a real socket. This is a hard invariant for two reasons:
+
+1. **Privacy.** The CTC operator URL (`itv.jsinfo.net`) is a real third-party endpoint. A test that contacts it would leak the existence of every CI run and developer machine to that operator without consent.
+2. **Reliability.** Tests that depend on external services are flaky by definition. Network blips become red CI runs that aren't actually about the code under test.
+
+Verify by inspection before committing:
+
+- Open every new `*Test.kt` file authored in Phases 2-4.
+- Confirm each one either: (a) uses `MockWebServer` and `server.url(...)` for HTTP, (b) mocks `EpgProvider` / `CtcAuthClient` via `mockk`, or (c) operates on string literal fixtures with no I/O at all.
+- Reject any code review that introduces `URL("http://...")`, `OkHttpClient().newCall(realRequest)`, or fixture URLs that aren't `127.0.0.1` / `mockWebServer.url(...)`.
+
+If a future PR proposes "just a quick integration test that hits the real server" — refuse. The right shape is: capture a representative response with `curl` (or by running `iptv_client.py` against a known account), commit it as a string fixture under `app/src/test/resources/`, and replay it through MockWebServer. Never live traffic.
+
+Note: instrumented tests under `app/src/androidTest/` (run via `connectedAndroidTest`) are NOT covered by this invariant — they run on a device and may legitimately exercise networking. Those tests must not, however, contact the CTC operator URL; if any androidTest fixture grows a real network call, route it at `127.0.0.1` or a local emulator endpoint only.
+
+- [ ] **Step 5: Build a debug APK and install on an emulator or Android TV device**
 
 Run:
 
@@ -4678,7 +4709,7 @@ Run:
 
 Expected: `BUILD SUCCESSFUL` and the app launches when opened.
 
-- [ ] **Step 5: Manual verification — EPG off (default 004 behavior)**
+- [ ] **Step 6: Manual verification — EPG off (default 004 behavior)**
 
 With the freshly installed debug build, on an Android TV emulator or device:
 
@@ -4688,7 +4719,7 @@ With the freshly installed debug build, on an Android TV emulator or device:
 - Press LEFT on the channel banner to open the channel list.
 - **Expected**: channel list overlay shows channels only; **no** EPG side panel. Identical to behavior before 004.
 
-- [ ] **Step 6: Manual verification — toggle EPG on, observe no provider in 004**
+- [ ] **Step 7: Manual verification — toggle EPG on, observe no provider in 004**
 
 Without restarting the app:
 
@@ -4701,16 +4732,16 @@ Without restarting the app:
 - Open the channel list with LEFT.
 - **Expected**: channel list still has no EPG side panel (because `isConfigured = false`). Layout is unchanged.
 
-- [ ] **Step 7: Manual verification — toggle persistence and re-disable**
+- [ ] **Step 8: Manual verification — toggle persistence and re-disable**
 
 - Force-stop the app, then relaunch.
 - Open Settings.
 - **Expected**: "Show program guide" toggle remains ON (FR-023 persistence).
 - Toggle "Show program guide" OFF.
 - Return to playback, switch channels, open the channel list.
-- **Expected**: identical to Step 5 (default 004 behavior). No EPG anywhere.
+- **Expected**: identical to Step 6 (default 004 behavior). No EPG anywhere.
 
-- [ ] **Step 8: Run on-device E2E suite (optional but recommended)**
+- [ ] **Step 9: Run on-device E2E suite (optional but recommended)**
 
 If an emulator is connected:
 
@@ -4720,7 +4751,7 @@ If an emulator is connected:
 
 Expected: `BUILD SUCCESSFUL`. Pre-existing E2E tests must continue to pass. SC-007 requires that the EPG-disabled path is regression-equivalent to pre-004 behavior; any failure here is a release blocker.
 
-- [ ] **Step 9: Final commit**
+- [ ] **Step 10: Final commit**
 
 ```bash
 git add app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgIntegrationTest.kt
