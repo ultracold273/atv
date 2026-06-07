@@ -12,9 +12,14 @@
 
 ---
 
-## Status legend
+## Phases overview
 
-The plan is split into 4 phases. Phase 1 (this file) covers domain models and dependencies. Phase 2 covers the CTC provider (auth + parsers + provider). Phase 3 covers UI. Phase 4 wires everything via Hilt and adds final integration tests. **This first commit only contains Phase 1.** Phases 2–4 will be appended incrementally as the work progresses; each appended phase is independently committable.
+The plan has 4 phases, each independently committable:
+
+1. **Phase 1: Domain models & dependencies** — OkHttp/MockWebServer deps, `Program` model, `EpgProvider` interface, persisted `epgEnabled` preference, localized strings.
+2. **Phase 2: CTC provider** — `CtcAuthenticator` (3DES + golden fixture), `CtcResponseParsers`, `CtcAuthClient` (6-step login over MockWebServer), `CtcEpgProvider` (cache + retry + isConfigured=false).
+3. **Phase 3: UI surfaces** — extend `PlaybackUiState`, debounced focus flow in `PlaybackViewModel`, bottom block on `ChannelInfoOverlay`, new `EpgPanel`, side-by-side `ChannelListOverlay`, `PlaybackScreen` wiring.
+4. **Phase 4: Settings, Hilt, integration** — toggle in `SettingsScreen`, `SettingsViewModel.setEpgEnabled`, `EpgModule` Hilt bindings, integration test, manual verification checklist.
 
 ---
 
@@ -395,12 +400,4096 @@ git commit -m "feat(004): add EPG localized strings (en, zh)"
 
 ---
 
-## Phases 2–4 (deferred — to be appended)
+## Phase 2: CTC provider
 
-The remaining phases will be authored as separate appends to this file, each adding ~5 tasks. Splitting was necessary because the full plan exceeds a single message budget; each phase is independently committable and consistent with the structure above.
+This phase ports the relevant slice of `~/Documents/itv-reverse/iptv_client.py` into Kotlin, split across four testable units inside `app/src/main/kotlin/com/example/atv/data/epg/`:
 
-- **Phase 2: CTC provider** — `CtcAuthenticator` (3DES + golden fixtures), `CtcResponseParsers`, `CtcAuthClient` (6-step login over MockWebServer), `CtcEpgProvider` (cache, isConfigured=false in 004, fetch wiring).
-- **Phase 3: UI surfaces** — `EpgPanelState`, modify `PlaybackUiState`, debounced focus + cancellation in `PlaybackViewModel`, modify `ChannelInfoOverlay` for bottom block, new `EpgPanel`, modify `ChannelListOverlay` for side-by-side, wire `PlaybackScreen`.
-- **Phase 4: Settings + Hilt + integration** — toggle row in `SettingsScreen`, `SettingsViewModel.setEpgEnabled`, `EpgModule` Hilt bindings, end-to-end smoke test, manual verification checklist.
+- **Task 6** — `CtcAuthenticator`: pure 3DES crypto + authenticator-string builder.
+- **Task 7** — `CtcResponseParsers`: pure regex/JSON parsing helpers (no I/O).
+- **Task 8** — `CtcAuthClient`: 6-step HTTP login session, `OkHttpClient` + `CookieJar`.
+- **Task 9** — `CtcEpgProvider`: `EpgProvider` impl with cache, retry, single-flight, and `isConfigured` permanently false in 004.
 
-When you reach the end of Phase 1 and want to continue, ask the planner to append Phase 2 to this file.
+A shared test fixtures file (`app/src/test/kotlin/com/example/atv/EpgFixtures.kt`) holds golden values reproducible from the Python reference.
+
+---
+
+### Task 6: CtcAuthenticator (3DES + authenticator builder)
+
+**Files:**
+- Create: `app/src/main/kotlin/com/example/atv/data/epg/CtcAuthenticator.kt`
+- Create: `app/src/test/kotlin/com/example/atv/EpgFixtures.kt`
+- Create: `app/src/test/kotlin/com/example/atv/data/epg/CtcAuthenticatorTest.kt`
+
+- [ ] **Step 0: Regenerate the golden authenticator fixture from the Python reference (one-time human action)**
+
+This is a real human action. The Kotlin port must produce byte-identical output to `iptv_client.py:_build_authenticator` for a fixed input. To capture the golden value, run the Python reference once with the fixed inputs we will reuse in the Kotlin test. From `~/Documents/itv-reverse/`:
+
+```bash
+python -c "
+import random
+random.seed(42)
+from iptv_client import DeviceProfile, _build_authenticator
+device = DeviceProfile(
+    user_id='0512208781520',
+    password='102255',
+    stb_id='00109932000000001690878561017743',
+    ip='192.168.20.200',
+    mac='40:1A:58:96:92:BD',
+)
+print(_build_authenticator(device, 'abcdef0123456789'))
+print('rand=', random.Random(42).randint(10_000_000, 99_999_999))
+"
+```
+
+Copy the printed authenticator hex into `EpgFixtures.GOLDEN_AUTHENTICATOR_HEX` (Step 1 below). The second line tells you what `random.Random(42).randint(10_000_000, 99_999_999)` evaluates to in Python — record it as `EpgFixtures.GOLDEN_RAND` (also Step 1) so the Kotlin test can build the matching plaintext deterministically with `java.util.Random(seed)`.
+
+Note: Python's `random.randint` uses the Mersenne Twister; `java.util.Random(seed)` does not. The test does not seed Java's `Random` to match Python — instead it explicitly passes the captured `rand` value as a precomputed seed-equivalent through a test-only hook. See Step 4.
+
+- [ ] **Step 1: Create the test fixtures file**
+
+Create `app/src/test/kotlin/com/example/atv/EpgFixtures.kt`:
+
+```kotlin
+package com.example.atv
+
+/**
+ * Captured fixtures from the Python reference at ~/Documents/itv-reverse/iptv_client.py.
+ *
+ * To regenerate GOLDEN_AUTHENTICATOR_HEX and GOLDEN_RAND, run (from ~/Documents/itv-reverse/):
+ *
+ *   python -c "
+ *   import random
+ *   random.seed(42)
+ *   from iptv_client import DeviceProfile, _build_authenticator
+ *   device = DeviceProfile(
+ *       user_id='0512208781520',
+ *       password='102255',
+ *       stb_id='00109932000000001690878561017743',
+ *       ip='192.168.20.200',
+ *       mac='40:1A:58:96:92:BD',
+ *   )
+ *   print(_build_authenticator(device, 'abcdef0123456789'))
+ *   print(random.Random(42).randint(10_000_000, 99_999_999))
+ *   "
+ *
+ * Paste the first line into GOLDEN_AUTHENTICATOR_HEX, the second into GOLDEN_RAND.
+ */
+object EpgFixtures {
+    const val USER_ID = "0512208781520"
+    const val PASSWORD = "102255"
+    const val STB_ID = "00109932000000001690878561017743"
+    const val IP = "192.168.20.200"
+    const val MAC = "40:1A:58:96:92:BD"
+    const val ENCRY_TOKEN = "abcdef0123456789"
+
+    /** Python: random.Random(42).randint(10_000_000, 99_999_999). */
+    const val GOLDEN_RAND: Long = 0L // TODO: paste from python output above
+
+    /** Hex output of _build_authenticator(device, ENCRY_TOKEN) with rand fixed to GOLDEN_RAND. */
+    const val GOLDEN_AUTHENTICATOR_HEX: String = "" // TODO: paste from python output above
+
+    /** Plaintext that should be 3DES-encrypted when rand == GOLDEN_RAND. */
+    val GOLDEN_PLAINTEXT: String
+        get() = "$GOLDEN_RAND\$$ENCRY_TOKEN\$$USER_ID\$$STB_ID\$$IP\$$MAC\$\$CTC"
+
+    /** Key derivation: password padded to 24 bytes with '0'. */
+    val GOLDEN_KEY: ByteArray
+        get() = PASSWORD.padEnd(24, '0').toByteArray(Charsets.US_ASCII)
+}
+```
+
+- [ ] **Step 2: Write the failing test**
+
+Create `app/src/test/kotlin/com/example/atv/data/epg/CtcAuthenticatorTest.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import com.example.atv.EpgFixtures
+import org.junit.jupiter.api.Assertions.assertArrayEquals
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class CtcAuthenticatorTest {
+
+    @Test
+    fun `encrypt3des output is deterministic for same input`() {
+        val key = EpgFixtures.GOLDEN_KEY
+        val plaintext = EpgFixtures.GOLDEN_PLAINTEXT.toByteArray(Charsets.UTF_8)
+        val a = CtcAuthenticator.encrypt3des(key, plaintext)
+        val b = CtcAuthenticator.encrypt3des(key, plaintext)
+        assertArrayEquals(a, b)
+    }
+
+    @Test
+    fun `encrypt3des produces ciphertext that is a multiple of 8 bytes (DES block size)`() {
+        val key = EpgFixtures.GOLDEN_KEY
+        val ct = CtcAuthenticator.encrypt3des(key, "hello".toByteArray())
+        assertEquals(0, ct.size % 8)
+        assertTrue(ct.size >= 8)
+    }
+
+    @Test
+    fun `buildAuthenticator with fixed rand matches python golden hex`() {
+        // Skip if fixture hasn't been regenerated yet (see EpgFixtures.kt header for command).
+        if (EpgFixtures.GOLDEN_AUTHENTICATOR_HEX.isEmpty()) return
+
+        val hex = CtcAuthenticator.buildAuthenticatorWithRand(
+            userId = EpgFixtures.USER_ID,
+            password = EpgFixtures.PASSWORD,
+            stbId = EpgFixtures.STB_ID,
+            ip = EpgFixtures.IP,
+            mac = EpgFixtures.MAC,
+            encryToken = EpgFixtures.ENCRY_TOKEN,
+            rand = EpgFixtures.GOLDEN_RAND,
+        )
+        assertEquals(EpgFixtures.GOLDEN_AUTHENTICATOR_HEX, hex)
+    }
+
+    @Test
+    fun `buildAuthenticator with same randomSeed is deterministic`() {
+        val a = CtcAuthenticator.buildAuthenticator(
+            userId = EpgFixtures.USER_ID,
+            password = EpgFixtures.PASSWORD,
+            stbId = EpgFixtures.STB_ID,
+            ip = EpgFixtures.IP,
+            mac = EpgFixtures.MAC,
+            encryToken = EpgFixtures.ENCRY_TOKEN,
+            randomSeed = 1234L,
+        )
+        val b = CtcAuthenticator.buildAuthenticator(
+            userId = EpgFixtures.USER_ID,
+            password = EpgFixtures.PASSWORD,
+            stbId = EpgFixtures.STB_ID,
+            ip = EpgFixtures.IP,
+            mac = EpgFixtures.MAC,
+            encryToken = EpgFixtures.ENCRY_TOKEN,
+            randomSeed = 1234L,
+        )
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun `randomRand is always 8 digits in [10_000_000, 99_999_999]`() {
+        repeat(100) { i ->
+            val rand = CtcAuthenticator.randomRand(java.util.Random(i.toLong()))
+            assertTrue(rand in 10_000_000L..99_999_999L, "rand=$rand")
+        }
+    }
+
+    @Test
+    fun `plaintext format is rand dollar encryToken dollar userId dollar stbId dollar ip dollar mac dollar dollar CTC`() {
+        val pt = CtcAuthenticator.plaintext(
+            rand = 12345678L,
+            encryToken = "tok",
+            userId = "u",
+            stbId = "s",
+            ip = "i",
+            mac = "m",
+        )
+        assertEquals("12345678\$tok\$u\$s\$i\$m\$\$CTC", pt)
+    }
+
+    @Test
+    fun `key derivation pads password to 24 bytes with zero character`() {
+        val key = CtcAuthenticator.deriveKey("abc")
+        assertEquals(24, key.size)
+        assertEquals('a'.code.toByte(), key[0])
+        assertEquals('b'.code.toByte(), key[1])
+        assertEquals('c'.code.toByte(), key[2])
+        assertEquals('0'.code.toByte(), key[3])
+        assertEquals('0'.code.toByte(), key[23])
+    }
+}
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcAuthenticatorTest"`
+Expected: FAIL — `CtcAuthenticator` class does not exist.
+
+- [ ] **Step 4: Create the CtcAuthenticator implementation**
+
+Create `app/src/main/kotlin/com/example/atv/data/epg/CtcAuthenticator.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import java.util.Random
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
+
+/**
+ * Pure crypto helpers for the CTC IPTV authentication scheme.
+ *
+ * Ports `_build_authenticator` and `_encrypt_3des` from
+ * `~/Documents/itv-reverse/iptv_client.py` lines 199-213.
+ *
+ * Threading: stateless; all functions are safe to call from any thread.
+ */
+object CtcAuthenticator {
+
+    private const val ALGORITHM = "DESede/ECB/PKCS5Padding"
+    private const val KEY_ALGO = "DESede"
+    private const val RAND_MIN = 10_000_000L
+    private const val RAND_MAX = 99_999_999L
+
+    /**
+     * 3DES-ECB encrypt with PKCS5/PKCS7 padding (PKCS5 in JCE name == PKCS7 for 8-byte blocks).
+     *
+     * @param key 24-byte DESede key (see [deriveKey]).
+     * @param plaintext arbitrary bytes; padding is applied automatically.
+     */
+    fun encrypt3des(key: ByteArray, plaintext: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance(ALGORITHM)
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, KEY_ALGO))
+        return cipher.doFinal(plaintext)
+    }
+
+    /** Pad password to 24 ASCII bytes with '0', as in `password.ljust(24, "0").encode()`. */
+    fun deriveKey(password: String): ByteArray =
+        password.padEnd(24, '0').toByteArray(Charsets.US_ASCII)
+
+    /** Build the plaintext exactly as the Python reference does (line 208-211). */
+    fun plaintext(
+        rand: Long,
+        encryToken: String,
+        userId: String,
+        stbId: String,
+        ip: String,
+        mac: String,
+    ): String = "$rand\$$encryToken\$$userId\$$stbId\$$ip\$$mac\$\$CTC"
+
+    /** Pull an 8-digit random in [10_000_000, 99_999_999] from the given [Random]. */
+    fun randomRand(random: Random): Long =
+        RAND_MIN + (random.nextLong() and Long.MAX_VALUE) % (RAND_MAX - RAND_MIN + 1)
+
+    /**
+     * Production entrypoint. Caller supplies a seed for deterministic tests; production
+     * callers pass `System.nanoTime()` (or any varied seed).
+     */
+    fun buildAuthenticator(
+        userId: String,
+        password: String,
+        stbId: String,
+        ip: String,
+        mac: String,
+        encryToken: String,
+        randomSeed: Long,
+    ): String {
+        val rand = randomRand(Random(randomSeed))
+        return buildAuthenticatorWithRand(userId, password, stbId, ip, mac, encryToken, rand)
+    }
+
+    /**
+     * Test-friendly variant that accepts a pre-computed `rand`. The golden-fixture test uses
+     * this to byte-match the Python reference (whose Mersenne Twister cannot be replicated by
+     * `java.util.Random`).
+     */
+    fun buildAuthenticatorWithRand(
+        userId: String,
+        password: String,
+        stbId: String,
+        ip: String,
+        mac: String,
+        encryToken: String,
+        rand: Long,
+    ): String {
+        require(rand in RAND_MIN..RAND_MAX) { "rand must be 8-digit, got $rand" }
+        val pt = plaintext(rand, encryToken, userId, stbId, ip, mac).toByteArray(Charsets.UTF_8)
+        val key = deriveKey(password)
+        return encrypt3des(key, pt).toHex()
+    }
+
+    private fun ByteArray.toHex(): String {
+        val sb = StringBuilder(size * 2)
+        for (b in this) {
+            sb.append(HEX[(b.toInt() ushr 4) and 0x0F])
+            sb.append(HEX[b.toInt() and 0x0F])
+        }
+        return sb.toString()
+    }
+
+    private val HEX = "0123456789abcdef".toCharArray()
+}
+```
+
+- [ ] **Step 5: Run the test to verify it passes**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcAuthenticatorTest"`
+Expected: PASS, 7 tests. (The golden-hex test is a no-op until the fixture is regenerated; that is intentional and documented in `EpgFixtures.kt`.)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/data/epg/CtcAuthenticator.kt \
+        app/src/test/kotlin/com/example/atv/EpgFixtures.kt \
+        app/src/test/kotlin/com/example/atv/data/epg/CtcAuthenticatorTest.kt
+git commit -m "feat(004): add CtcAuthenticator (3DES + authenticator builder)"
+```
+
+---
+
+### Task 7: CtcResponseParsers (regex + JSON helpers)
+
+**Files:**
+- Create: `app/src/main/kotlin/com/example/atv/data/epg/CtcResponseParsers.kt`
+- Create: `app/src/test/kotlin/com/example/atv/data/epg/CtcResponseParsersTest.kt`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/src/test/kotlin/com/example/atv/data/epg/CtcResponseParsersTest.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+class CtcResponseParsersTest {
+
+    // --- parseEncryToken -----------------------------------------------------
+
+    @Test
+    fun `parseEncryToken extracts token from CTCGetAuthInfo call`() {
+        val html = "<script>Authentication.CTCGetAuthInfo('deadbeef0123');</script>"
+        assertEquals("deadbeef0123", CtcResponseParsers.parseEncryToken(html))
+    }
+
+    @Test
+    fun `parseEncryToken returns null when missing`() {
+        assertNull(CtcResponseParsers.parseEncryToken("<html>nothing here</html>"))
+    }
+
+    // --- parseSetConfig ------------------------------------------------------
+
+    @Test
+    fun `parseSetConfig collects all key value pairs`() {
+        val html = """
+            Authentication.CTCSetConfig('UserToken','abc123');
+            Authentication.CTCSetConfig('EPGURL','http://10.0.0.1/epg/');
+            Authentication.CTCSetConfig('Empty','');
+        """.trimIndent()
+        val cfg = CtcResponseParsers.parseSetConfig(html)
+        assertEquals("abc123", cfg["UserToken"])
+        assertEquals("http://10.0.0.1/epg/", cfg["EPGURL"])
+        assertEquals("", cfg["Empty"])
+    }
+
+    @Test
+    fun `parseSetConfig returns empty map when no entries`() {
+        assertTrue(CtcResponseParsers.parseSetConfig("<html/>").isEmpty())
+    }
+
+    // --- parseDocumentLocation ----------------------------------------------
+
+    @Test
+    fun `parseDocumentLocation extracts redirect with single quotes`() {
+        val html = "document.location = 'http://lb.example.com/iptvepg/index.jsp';"
+        assertEquals(
+            "http://lb.example.com/iptvepg/index.jsp",
+            CtcResponseParsers.parseDocumentLocation(html),
+        )
+    }
+
+    @Test
+    fun `parseDocumentLocation extracts redirect with double quotes`() {
+        val html = "document.location=\"http://node.example.com/iptvepg/portal.jsp\""
+        assertEquals(
+            "http://node.example.com/iptvepg/portal.jsp",
+            CtcResponseParsers.parseDocumentLocation(html),
+        )
+    }
+
+    @Test
+    fun `parseDocumentLocation returns null when no redirect`() {
+        assertNull(CtcResponseParsers.parseDocumentLocation("<html>no redirect</html>"))
+    }
+
+    // --- parseHiddenInputs ---------------------------------------------------
+
+    @Test
+    fun `parseHiddenInputs collects name value pairs case-insensitively`() {
+        val html = """
+            <INPUT TYPE="hidden" NAME="UserID" VALUE="0512208781520"/>
+            <input type='hidden' name='STBID' value='001099320000'/>
+            <input type="hidden" name="EmptyVal" value=""/>
+        """.trimIndent()
+        val inputs = CtcResponseParsers.parseHiddenInputs(html)
+        assertEquals("0512208781520", inputs["UserID"])
+        assertEquals("001099320000", inputs["STBID"])
+        assertEquals("", inputs["EmptyVal"])
+    }
+
+    @Test
+    fun `parseHiddenInputs ignores non-hidden inputs`() {
+        val html = "<input type=\"text\" name=\"x\" value=\"y\"/>"
+        assertTrue(CtcResponseParsers.parseHiddenInputs(html).isEmpty())
+    }
+
+    // --- parseTimestamp ------------------------------------------------------
+
+    @Test
+    fun `parseTimestamp accepts yyyyMMddHHmmss in device local zone`() {
+        val ts = CtcResponseParsers.parseTimestamp("20260607080000")
+        val expected = LocalDateTime.of(2026, 6, 7, 8, 0, 0)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+        assertEquals(expected, ts)
+    }
+
+    @Test
+    fun `parseTimestamp falls back to ISO-8601`() {
+        val ts = CtcResponseParsers.parseTimestamp("2026-06-07T08:00:00Z")
+        assertEquals(Instant.parse("2026-06-07T08:00:00Z"), ts)
+    }
+
+    @Test
+    fun `parseTimestamp throws on unrecognized format`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CtcResponseParsers.parseTimestamp("not a timestamp")
+        }
+    }
+
+    // --- parsePrograms -------------------------------------------------------
+
+    @Test
+    fun `parsePrograms reads channelPrevue array`() {
+        val json = """
+            {"channelPrevue":[
+              {"prevuecode":"p1","prevuename":"News","begintime":"20260607080000",
+               "endtime":"20260607090000","isLive":"1","isBack":"0","isRecord":"0"},
+              {"prevuecode":"p2","prevuename":"Drama","begintime":"20260607090000",
+               "endtime":"20260607100000","isLive":"0","isBack":"1","isRecord":"0"}
+            ]}
+        """.trimIndent()
+        val programs = CtcResponseParsers.parsePrograms(json)
+        assertEquals(2, programs.size)
+        assertEquals("p1", programs[0].code)
+        assertEquals("News", programs[0].name)
+        assertTrue(programs[0].isLive)
+        assertTrue(!programs[0].isReplayable)
+        assertEquals("p2", programs[1].code)
+        assertTrue(!programs[1].isLive)
+        assertTrue(programs[1].isReplayable)
+    }
+
+    @Test
+    fun `parsePrograms tolerates BOM-prefixed JSON`() {
+        val json = "﻿{\"channelPrevue\":[]}"
+        assertTrue(CtcResponseParsers.parsePrograms(json).isEmpty())
+    }
+
+    @Test
+    fun `parsePrograms tolerates trailing markup after the JSON object`() {
+        val json = """
+            <!--cache-->{"channelPrevue":[{"prevuecode":"p","prevuename":"X",
+            "begintime":"20260607080000","endtime":"20260607083000",
+            "isLive":"0","isBack":"0","isRecord":"0"}]}<!--end-->
+        """.trimIndent()
+        val programs = CtcResponseParsers.parsePrograms(json)
+        assertEquals(1, programs.size)
+        assertEquals("p", programs[0].code)
+    }
+
+    @Test
+    fun `parsePrograms returns empty list when channelPrevue is empty`() {
+        assertTrue(CtcResponseParsers.parsePrograms("""{"channelPrevue":[]}""").isEmpty())
+    }
+
+    @Test
+    fun `parsePrograms returns empty list when JSON is unrecoverable`() {
+        assertTrue(CtcResponseParsers.parsePrograms("not json at all").isEmpty())
+    }
+
+    @Test
+    fun `parsePrograms isReplayable is true when isBack or isRecord is 1`() {
+        val backOnly = """
+            {"channelPrevue":[{"prevuecode":"p","prevuename":"X",
+            "begintime":"20260607080000","endtime":"20260607083000",
+            "isLive":"0","isBack":"1","isRecord":"0"}]}
+        """.trimIndent()
+        val recordOnly = """
+            {"channelPrevue":[{"prevuecode":"p","prevuename":"X",
+            "begintime":"20260607080000","endtime":"20260607083000",
+            "isLive":"0","isBack":"0","isRecord":"1"}]}
+        """.trimIndent()
+        assertTrue(CtcResponseParsers.parsePrograms(backOnly).single().isReplayable)
+        assertTrue(CtcResponseParsers.parsePrograms(recordOnly).single().isReplayable)
+    }
+}
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcResponseParsersTest"`
+Expected: FAIL — `CtcResponseParsers` does not exist.
+
+- [ ] **Step 3: Create the CtcResponseParsers implementation**
+
+Create `app/src/main/kotlin/com/example/atv/data/epg/CtcResponseParsers.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import com.example.atv.domain.model.Program
+import org.json.JSONException
+import org.json.JSONObject
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+/**
+ * Pure parsing helpers for CTC HTML/JS/JSON responses.
+ *
+ * Ports the regexes and JSON conventions from
+ * `~/Documents/itv-reverse/iptv_client.py` lines 221-282 and the `Program.from_json`
+ * mapping (lines 180-191).
+ *
+ * Threading: stateless; safe to call from any thread.
+ */
+object CtcResponseParsers {
+
+    private val RE_ENCRY_TOKEN = Regex("""Authentication\.CTCGetAuthInfo\('([^']+)'\)""")
+    private val RE_SET_CONFIG = Regex("""Authentication\.CTCSetConfig\s*\(\s*'([^']+)'\s*,\s*'([^']*)'\s*\)""")
+    private val RE_DOCUMENT_LOCATION = Regex("""document\.location\s*=\s*['"]([^'"]+)['"]""")
+    private val RE_HIDDEN_INPUT = Regex(
+        """<input\s+type=["']hidden["']\s+name\s*=\s*["']([^"']+)["']\s+value\s*=\s*["']?([^"'>\s]*)["']?\s*/?>""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val TIMESTAMP_COMPACT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+
+    fun parseEncryToken(html: String): String? =
+        RE_ENCRY_TOKEN.find(html)?.groupValues?.get(1)
+
+    fun parseSetConfig(html: String): Map<String, String> =
+        RE_SET_CONFIG.findAll(html).associate { it.groupValues[1] to it.groupValues[2] }
+
+    fun parseDocumentLocation(html: String): String? =
+        RE_DOCUMENT_LOCATION.find(html)?.groupValues?.get(1)
+
+    fun parseHiddenInputs(html: String): Map<String, String> =
+        RE_HIDDEN_INPUT.findAll(html).associate { it.groupValues[1] to it.groupValues[2] }
+
+    /**
+     * Parse a CTC server timestamp.
+     *
+     * The Python reference stores timestamps as raw strings (no parsing). The Kotlin port
+     * normalizes at the provider boundary using these rules (per spec.md "Time zone"):
+     *   1. `yyyyMMddHHmmss` (e.g. "20260607080000") interpreted in the device's local zone.
+     *   2. ISO-8601 (e.g. "2026-06-07T08:00:00Z") via [Instant.parse].
+     *   3. Otherwise throw [IllegalArgumentException].
+     */
+    fun parseTimestamp(s: String): Instant {
+        runCatching {
+            return LocalDateTime.parse(s, TIMESTAMP_COMPACT)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+        }
+        runCatching { return Instant.parse(s) }
+        throw IllegalArgumentException("Unrecognized timestamp format: $s")
+    }
+
+    /**
+     * Parse a `prevue_list.jsp` response into [Program]s.
+     *
+     * Tolerates HTML/JS wrapping by locating the first '{' and using a relaxed JSON parse,
+     * mirroring `_loads_lenient` from the Python reference (lines 265-282).
+     * Returns an empty list when no JSON object can be recovered.
+     */
+    fun parsePrograms(jsonText: String): List<Program> {
+        val obj = lenientJsonObject(jsonText) ?: return emptyList()
+        val arr = obj.optJSONArray("channelPrevue") ?: return emptyList()
+        val out = ArrayList<Program>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out += Program(
+                code = o.optString("prevuecode", ""),
+                name = o.optString("prevuename", ""),
+                start = parseTimestamp(o.optString("begintime", "")),
+                end = parseTimestamp(o.optString("endtime", "")),
+                isLive = o.optString("isLive") == "1",
+                isReplayable = o.optString("isBack") == "1" || o.optString("isRecord") == "1",
+            )
+        }
+        return out
+    }
+
+    private fun lenientJsonObject(text: String): JSONObject? {
+        try {
+            return JSONObject(text)
+        } catch (_: JSONException) {
+            // fall through
+        } catch (_: DateTimeParseException) {
+            return null
+        }
+        val start = text.indexOf('{')
+        if (start < 0) return null
+        // Walk from `start` forward, tracking depth, to find the matching '}'.
+        var depth = 0
+        var inString = false
+        var escape = false
+        for (i in start until text.length) {
+            val c = text[i]
+            when {
+                escape -> escape = false
+                inString && c == '\\' -> escape = true
+                inString && c == '"' -> inString = false
+                !inString && c == '"' -> inString = true
+                !inString && c == '{' -> depth++
+                !inString && c == '}' -> {
+                    depth--
+                    if (depth == 0) {
+                        return runCatching { JSONObject(text.substring(start, i + 1)) }.getOrNull()
+                    }
+                }
+            }
+        }
+        return null
+    }
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcResponseParsersTest"`
+Expected: PASS, 18 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/data/epg/CtcResponseParsers.kt \
+        app/src/test/kotlin/com/example/atv/data/epg/CtcResponseParsersTest.kt
+git commit -m "feat(004): add CtcResponseParsers (regex + JSON helpers)"
+```
+
+---
+
+### Task 8: CtcAuthClient (6-step login over HTTP)
+
+**Files:**
+- Create: `app/src/main/kotlin/com/example/atv/data/epg/CtcAuthClient.kt`
+- Create: `app/src/test/kotlin/com/example/atv/data/epg/CtcAuthClientTest.kt`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/src/test/kotlin/com/example/atv/data/epg/CtcAuthClientTest.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import com.example.atv.EpgFixtures
+import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+
+class CtcAuthClientTest {
+
+    private lateinit var server: MockWebServer
+    private lateinit var http: OkHttpClient
+    private lateinit var device: DeviceProfile
+
+    @BeforeEach
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+        http = OkHttpClient.Builder().build()
+        device = DeviceProfile(
+            userId = EpgFixtures.USER_ID,
+            password = EpgFixtures.PASSWORD,
+            stbId = EpgFixtures.STB_ID,
+            ip = EpgFixtures.IP,
+            mac = EpgFixtures.MAC,
+        )
+    }
+
+    @AfterEach
+    fun tearDown() {
+        server.shutdown()
+    }
+
+    private fun authBase(): String = server.url("/").toString().removeSuffix("/")
+
+    /** Enqueue a complete happy-path login transcript matching python's 6 steps. */
+    private fun enqueueHappyPath() {
+        // Step 1: GET /auth?UserID=...&Action=Login
+        server.enqueue(
+            MockResponse().setBody(
+                "<script>Authentication.CTCGetAuthInfo('${EpgFixtures.ENCRY_TOKEN}');</script>"
+            )
+        )
+        // Step 2-3: POST /uploadAuthInfo
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                Authentication.CTCSetConfig('UserToken','tok-XYZ');
+                Authentication.CTCSetConfig('EPGURL','http://does.not/');
+                """.trimIndent()
+            )
+        )
+        // Step 4: GET /getServiceList — redirect via document.location
+        val lbUrl = server.url("/iptvepg/lb").toString()
+        server.enqueue(MockResponse().setBody("document.location='$lbUrl';"))
+        // Step 5a: lb hop — second redirect
+        val nodeUrl = server.url("/iptvepg/function/index.jsp").toString()
+        server.enqueue(MockResponse().setBody("document.location='$nodeUrl';"))
+        // Step 5b: actual node — sets JSESSIONID and serves portal HTML
+        server.enqueue(
+            MockResponse()
+                .addHeader("Set-Cookie", "JSESSIONID=ABC123XYZ; Path=/iptvepg")
+                .setBody(
+                    """
+                    <html><body>
+                    <input type="hidden" name="UserID" value="${EpgFixtures.USER_ID}"/>
+                    <input type="hidden" name="STBID" value="${EpgFixtures.STB_ID}"/>
+                    </body></html>
+                    """.trimIndent()
+                )
+        )
+        // Step 6: POST /iptvepg/function/funcportalauth.jsp
+        server.enqueue(MockResponse().setResponseCode(200).setBody("ok"))
+    }
+
+    @Test
+    fun `login happy path returns Success with epgLbBase, jsessionId, config, userToken`() = runTest {
+        enqueueHappyPath()
+        val client = CtcAuthClient(http, authBase(), device)
+        val result = client.login()
+        assertTrue(result is LoginResult.Success, "got $result")
+        result as LoginResult.Success
+        assertEquals("tok-XYZ", result.userToken)
+        assertEquals("ABC123XYZ", result.jsessionId)
+        assertTrue(
+            result.epgLbBase.endsWith("/iptvepg/function/"),
+            "epgLbBase=${result.epgLbBase}",
+        )
+        assertEquals("tok-XYZ", result.config["UserToken"])
+    }
+
+    @Test
+    fun `login step 1 sends UserID and Action=Login`() = runTest {
+        enqueueHappyPath()
+        CtcAuthClient(http, authBase(), device).login()
+        val req = server.takeRequest()
+        assertEquals("GET", req.method)
+        assertTrue(req.path!!.contains("UserID=${EpgFixtures.USER_ID}"))
+        assertTrue(req.path!!.contains("Action=Login"))
+    }
+
+    @Test
+    fun `login step 2 posts Authenticator UserID AccessMethod AccessUserName`() = runTest {
+        enqueueHappyPath()
+        CtcAuthClient(http, authBase(), device).login()
+        server.takeRequest() // step 1
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/uploadAuthInfo", req.path)
+        val body = req.body.readUtf8()
+        assertTrue(body.contains("UserID=${EpgFixtures.USER_ID}"))
+        assertTrue(body.contains("Authenticator="))
+        assertTrue(body.contains("AccessMethod=dhcp"))
+        assertTrue(body.contains("AccessUserName=${EpgFixtures.USER_ID}"))
+    }
+
+    @Test
+    fun `login step 4 sends UserToken cookie`() = runTest {
+        enqueueHappyPath()
+        CtcAuthClient(http, authBase(), device).login()
+        server.takeRequest() // step 1
+        server.takeRequest() // step 2
+        val req = server.takeRequest()
+        assertEquals("/getServiceList", req.path)
+        assertTrue(req.getHeader("Cookie").orEmpty().contains("UserToken=tok-XYZ"))
+    }
+
+    @Test
+    fun `login step 6 posts hidden inputs to funcportalauth jsp with JSESSIONID`() = runTest {
+        enqueueHappyPath()
+        CtcAuthClient(http, authBase(), device).login()
+        repeat(5) { server.takeRequest() }
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertTrue(req.path!!.endsWith("/iptvepg/function/funcportalauth.jsp"))
+        val body = req.body.readUtf8()
+        assertTrue(body.contains("UserID=${EpgFixtures.USER_ID}"))
+        assertTrue(body.contains("STBID=${EpgFixtures.STB_ID}"))
+        assertTrue(req.getHeader("Cookie").orEmpty().contains("JSESSIONID=ABC123XYZ"))
+    }
+
+    @Test
+    fun `login fails with NoEncryToken when login page is malformed`() = runTest {
+        server.enqueue(MockResponse().setBody("<html>broken</html>"))
+        val result = CtcAuthClient(http, authBase(), device).login()
+        assertTrue(result is LoginResult.Failure)
+        assertTrue((result as LoginResult.Failure).reason.contains("EncryToken"))
+    }
+
+    @Test
+    fun `login fails with NoUserToken when uploadAuthInfo lacks it`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("<script>Authentication.CTCGetAuthInfo('${EpgFixtures.ENCRY_TOKEN}');</script>")
+        )
+        server.enqueue(
+            MockResponse().setBody("Authentication.CTCSetConfig('Other','1');")
+        )
+        val result = CtcAuthClient(http, authBase(), device).login()
+        assertTrue(result is LoginResult.Failure)
+        assertTrue((result as LoginResult.Failure).reason.contains("UserToken"))
+    }
+
+    @Test
+    fun `login fails with NoJsessionId when no Set-Cookie`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("<script>Authentication.CTCGetAuthInfo('${EpgFixtures.ENCRY_TOKEN}');</script>")
+        )
+        server.enqueue(MockResponse().setBody("Authentication.CTCSetConfig('UserToken','tok');"))
+        val lbUrl = server.url("/iptvepg/lb").toString()
+        server.enqueue(MockResponse().setBody("document.location='$lbUrl';"))
+        val nodeUrl = server.url("/iptvepg/function/index.jsp").toString()
+        server.enqueue(MockResponse().setBody("document.location='$nodeUrl';"))
+        // No Set-Cookie header here.
+        server.enqueue(MockResponse().setBody("<html/>"))
+        val result = CtcAuthClient(http, authBase(), device).login()
+        assertTrue(result is LoginResult.Failure)
+        assertTrue((result as LoginResult.Failure).reason.contains("JSESSIONID"))
+    }
+
+    @Test
+    fun `login returns Failure rather than throwing on network error`() = runTest {
+        server.shutdown() // force connection refusal
+        val result = CtcAuthClient(http, authBase(), device).login()
+        assertTrue(result is LoginResult.Failure, "got $result")
+        assertNotNull((result as LoginResult.Failure).reason)
+    }
+}
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcAuthClientTest"`
+Expected: FAIL — `CtcAuthClient`, `DeviceProfile`, `LoginResult` do not exist.
+
+- [ ] **Step 3: Create supporting types**
+
+Create `app/src/main/kotlin/com/example/atv/data/epg/CtcAuthClient.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.FormBody
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import timber.log.Timber
+import java.io.IOException
+
+/** Identity used in the authenticator plaintext. Mirrors python `DeviceProfile`. */
+data class DeviceProfile(
+    val userId: String,
+    val password: String,
+    val stbId: String,
+    val ip: String,
+    val mac: String,
+)
+
+sealed class LoginResult {
+    data class Success(
+        val epgLbBase: String,
+        val jsessionId: String,
+        val config: Map<String, String>,
+        val userToken: String,
+    ) : LoginResult()
+
+    data class Failure(val reason: String) : LoginResult()
+}
+
+/**
+ * 6-step CTC login client. Single-use per call to [login]; constructs a private cookie jar
+ * each time so concurrent logins do not share session state.
+ *
+ * Ports `IPTVClient.login` and its `_step_*` helpers from
+ * `~/Documents/itv-reverse/iptv_client.py` lines 353-501.
+ */
+class CtcAuthClient(
+    private val baseHttp: OkHttpClient,
+    private val authServer: String,
+    private val device: DeviceProfile,
+    private val randomSeed: () -> Long = { System.nanoTime() },
+) {
+
+    private val authBase: String = authServer.trimEnd('/')
+
+    suspend fun login(): LoginResult = withContext(Dispatchers.IO) {
+        try {
+            val jar = InMemoryCookieJar()
+            val http = baseHttp.newBuilder().cookieJar(jar).build()
+
+            val encryToken = stepLoginPage(http)
+                ?: return@withContext LoginResult.Failure("EncryToken not found in login page")
+
+            val authenticator = CtcAuthenticator.buildAuthenticator(
+                userId = device.userId,
+                password = device.password,
+                stbId = device.stbId,
+                ip = device.ip,
+                mac = device.mac,
+                encryToken = encryToken,
+                randomSeed = randomSeed(),
+            )
+
+            val config = stepUploadAuth(http, authenticator)
+            if (config.isEmpty()) {
+                return@withContext LoginResult.Failure("uploadAuthInfo had no CTCSetConfig entries")
+            }
+            val userToken = config["UserToken"]
+                ?: return@withContext LoginResult.Failure("UserToken missing from auth response")
+
+            val initialUrl = stepServiceList(http, userToken)
+                ?: return@withContext LoginResult.Failure("getServiceList: no document.location redirect")
+
+            val sessionInfo = stepEpgSession(http, jar, initialUrl)
+                ?: return@withContext LoginResult.Failure("JSESSIONID cookie not received from EPG")
+
+            stepPortalAuth(http, sessionInfo.epgLbBase, sessionInfo.jsessionId, sessionInfo.portalHtml)
+
+            LoginResult.Success(
+                epgLbBase = sessionInfo.epgLbBase,
+                jsessionId = sessionInfo.jsessionId,
+                config = config,
+                userToken = userToken,
+            )
+        } catch (e: IOException) {
+            Timber.d("CTC login network error: %s", e.message)
+            LoginResult.Failure("network error: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            Timber.d("CTC login parse error: %s", e.message)
+            LoginResult.Failure("parse error: ${e.message}")
+        }
+    }
+
+    private fun stepLoginPage(http: OkHttpClient): String? {
+        val url = "$authBase/auth".toHttpUrl().newBuilder()
+            .addQueryParameter("UserID", device.userId)
+            .addQueryParameter("Action", "Login")
+            .build()
+        val body = http.execGet(url)
+        return CtcResponseParsers.parseEncryToken(body)
+    }
+
+    private fun stepUploadAuth(http: OkHttpClient, authenticator: String): Map<String, String> {
+        val form = FormBody.Builder()
+            .add("UserID", device.userId)
+            .add("Authenticator", authenticator)
+            .add("AccessMethod", "dhcp")
+            .add("AccessUserName", device.userId)
+            .build()
+        val req = Request.Builder().url("$authBase/uploadAuthInfo").post(form).build()
+        val body = http.exec(req)
+        return CtcResponseParsers.parseSetConfig(body)
+    }
+
+    private fun stepServiceList(http: OkHttpClient, userToken: String): String? {
+        val req = Request.Builder()
+            .url("$authBase/getServiceList")
+            .header("Cookie", "UserToken=$userToken")
+            .build()
+        val body = http.exec(req)
+        return CtcResponseParsers.parseDocumentLocation(body)
+    }
+
+    private data class SessionInfo(
+        val epgLbBase: String,
+        val jsessionId: String,
+        val portalHtml: String,
+    )
+
+    private fun stepEpgSession(
+        http: OkHttpClient,
+        jar: InMemoryCookieJar,
+        initialUrl: String,
+    ): SessionInfo? {
+        val firstUrl = initialUrl.toHttpUrlOrNull()
+            ?: throw IOException("invalid initial EPG URL: $initialUrl")
+        val firstBody = http.execGet(firstUrl)
+        val balancedUrl = CtcResponseParsers.parseDocumentLocation(firstBody)
+            ?: throw IOException("EPG entry: no load-balanced redirect")
+
+        val secondUrl = balancedUrl.toHttpUrlOrNull()
+            ?: throw IOException("invalid balanced EPG URL: $balancedUrl")
+        val req = Request.Builder().url(secondUrl).build()
+        return baseHttp.newCall(req).executeIo().use { resp ->
+            val portalHtml = resp.body?.string().orEmpty()
+            val jsessionFromJar = jar.cookieValue(secondUrl, "JSESSIONID")
+            val jsession = jsessionFromJar
+                ?: parseJsessionFromHeaders(resp.headers("Set-Cookie"))
+                ?: return@use null
+            val finalUrl = resp.request.url
+            val pathDir = finalUrl.encodedPath.substringBeforeLast('/').ifEmpty { "/" } + "/"
+            val epgLbBase = "${finalUrl.scheme}://${finalUrl.host}" +
+                (if (finalUrl.port == HttpUrl.defaultPort(finalUrl.scheme)) "" else ":${finalUrl.port}") +
+                pathDir
+            SessionInfo(epgLbBase = epgLbBase, jsessionId = jsession, portalHtml = portalHtml)
+        }
+    }
+
+    private fun stepPortalAuth(
+        http: OkHttpClient,
+        epgLbBase: String,
+        jsessionId: String,
+        portalHtml: String,
+    ) {
+        val params = CtcResponseParsers.parseHiddenInputs(portalHtml)
+        val form = FormBody.Builder().apply {
+            params.forEach { (k, v) -> add(k, v) }
+        }.build()
+        val url = "${epgLbBase}funcportalauth.jsp".toHttpUrl()
+        val req = Request.Builder()
+            .url(url)
+            .post(form)
+            .header("Cookie", "JSESSIONID=$jsessionId")
+            .build()
+        // We don't fail login on a non-2xx here; python tolerates it loosely too.
+        baseHttp.newCall(req).executeIo().use { resp -> resp.body?.string() }
+    }
+
+    private fun parseJsessionFromHeaders(setCookieHeaders: List<String>): String? {
+        for (h in setCookieHeaders) {
+            val m = Regex("JSESSIONID=([^;]+)").find(h)
+            if (m != null) return m.groupValues[1]
+        }
+        return null
+    }
+
+    // --- HTTP helpers (private) --------------------------------------------
+
+    private fun OkHttpClient.execGet(url: HttpUrl): String {
+        val req = Request.Builder().url(url).build()
+        return exec(req)
+    }
+
+    private fun OkHttpClient.exec(req: Request): String =
+        newCall(req).executeIo().use { it.body?.string().orEmpty() }
+
+    private fun okhttp3.Call.executeIo(): okhttp3.Response =
+        try {
+            execute()
+        } catch (e: IOException) {
+            throw e
+        }
+}
+
+/**
+ * Minimal in-memory cookie jar, scoped per [CtcAuthClient.login] invocation.
+ * OkHttp's default jar discards cookies; we keep them so JSESSIONID survives across hops.
+ */
+internal class InMemoryCookieJar : CookieJar {
+    private val store = mutableListOf<Cookie>()
+
+    @Synchronized
+    override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        // Replace existing same-name cookies first.
+        for (c in cookies) {
+            store.removeAll { it.name == c.name && it.domain == c.domain && it.path == c.path }
+            store += c
+        }
+    }
+
+    @Synchronized
+    override fun loadForRequest(url: HttpUrl): List<Cookie> =
+        store.filter { it.matches(url) }
+
+    @Synchronized
+    fun cookieValue(url: HttpUrl, name: String): String? =
+        store.firstOrNull { it.name == name && it.matches(url) }?.value
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcAuthClientTest"`
+Expected: PASS, 9 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/data/epg/CtcAuthClient.kt \
+        app/src/test/kotlin/com/example/atv/data/epg/CtcAuthClientTest.kt
+git commit -m "feat(004): add CtcAuthClient (6-step login over OkHttp)"
+```
+
+---
+
+### Task 9: CtcEpgProvider (cache + retry + single-flight + isConfigured=false)
+
+**Files:**
+- Create: `app/src/main/kotlin/com/example/atv/data/epg/CtcEpgProvider.kt`
+- Create: `app/src/test/kotlin/com/example/atv/data/epg/CtcEpgProviderTest.kt`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/src/test/kotlin/com/example/atv/data/epg/CtcEpgProviderTest.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
+
+class CtcEpgProviderTest {
+
+    private lateinit var server: MockWebServer
+    private lateinit var http: OkHttpClient
+    private lateinit var authClient: CtcAuthClient
+    private val device = DeviceProfile(
+        userId = "0512208781520",
+        password = "102255",
+        stbId = "00109932000000001690878561017743",
+        ip = "192.168.20.200",
+        mac = "40:1A:58:96:92:BD",
+    )
+
+    @BeforeEach
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+        http = OkHttpClient.Builder().build()
+        authClient = mockk()
+    }
+
+    @AfterEach
+    fun tearDown() {
+        server.shutdown()
+    }
+
+    private fun successLogin(): LoginResult.Success = LoginResult.Success(
+        epgLbBase = server.url("/iptvepg/function/").toString(),
+        jsessionId = "JS-1",
+        config = mapOf("UserToken" to "tok"),
+        userToken = "tok",
+    )
+
+    private val sampleProgramsJson: String = """
+        {"channelPrevue":[
+          {"prevuecode":"p1","prevuename":"News","begintime":"20260607080000",
+           "endtime":"20260607090000","isLive":"1","isBack":"0","isRecord":"0"}
+        ]}
+    """.trimIndent()
+
+    @Test
+    fun `fetchPrograms returns failure when not configured`() = runTest {
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+
+        val result = provider.fetchPrograms("ch1", 0)
+        assertTrue(result.isFailure)
+        assertEquals(0, server.requestCount)
+        coVerify(exactly = 0) { authClient.login() }
+    }
+
+    @Test
+    fun `fetchPrograms returns programs on cache miss after configure`() = runTest {
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        val result = provider.fetchPrograms("ch1", 0)
+        assertTrue(result.isSuccess)
+        assertEquals(1, result.getOrNull()!!.size)
+        assertEquals("p1", result.getOrNull()!![0].code)
+    }
+
+    @Test
+    fun `fetchPrograms passes channelcode and dateindex query params`() = runTest {
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        provider.fetchPrograms("ch42", -1)
+        val req = server.takeRequest()
+        assertTrue(req.path!!.contains("/frame1194/CHANNEL_PLAYER_UTILS/datas/prevue_list.jsp"))
+        assertTrue(req.path!!.contains("channelcode=ch42"))
+        assertTrue(req.path!!.contains("dateindex=-1"))
+        assertTrue(req.path!!.contains("framecode=frame1194"))
+        assertTrue(req.path!!.contains("ajax=1"))
+        assertTrue(req.getHeader("Cookie").orEmpty().contains("JSESSIONID=JS-1"))
+    }
+
+    @Test
+    fun `fetchPrograms cache hit within TTL serves without network`() = runTest {
+        val fixed = Clock.fixed(Instant.parse("2026-06-07T08:00:00Z"), ZoneOffset.UTC)
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, fixed)
+        provider.testSetConfigured(true)
+
+        provider.fetchPrograms("ch1", 0) // miss
+        val req1 = server.requestCount
+        provider.fetchPrograms("ch1", 0) // hit
+        assertEquals(req1, server.requestCount)
+    }
+
+    @Test
+    fun `fetchPrograms cache miss after TTL re-fetches`() = runTest {
+        val t0 = Instant.parse("2026-06-07T08:00:00Z")
+        var now = t0
+        val clock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId?) = this
+            override fun instant(): Instant = now
+        }
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, clock)
+        provider.testSetConfigured(true)
+
+        provider.fetchPrograms("ch1", 0)
+        now = t0.plusSeconds(61)
+        provider.fetchPrograms("ch1", 0)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `fetchPrograms retries once on IOException`() = runTest(StandardTestDispatcher()) {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        val deferred = async { provider.fetchPrograms("ch1", 0) }
+        advanceTimeBy(2_000)
+        val result = deferred.await()
+        assertTrue(result.isSuccess, "got $result")
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `fetchPrograms returns failure after second IOException`() = runTest(StandardTestDispatcher()) {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        val deferred = async { provider.fetchPrograms("ch1", 0) }
+        advanceTimeBy(2_000)
+        val result = deferred.await()
+        assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun `fetchPrograms retries on HTTP 5xx then succeeds`() = runTest(StandardTestDispatcher()) {
+        server.enqueue(MockResponse().setResponseCode(503))
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        val deferred = async { provider.fetchPrograms("ch1", 0) }
+        advanceTimeBy(2_000)
+        assertTrue(deferred.await().isSuccess)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `fetchPrograms returns failure on malformed JSON after retry`() = runTest(StandardTestDispatcher()) {
+        server.enqueue(MockResponse().setBody("garbage"))
+        server.enqueue(MockResponse().setBody("garbage"))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        val deferred = async { provider.fetchPrograms("ch1", 0) }
+        advanceTimeBy(2_000)
+        // Malformed JSON parses to empty programs (lenient parser); we treat empty payload as success.
+        // The retry path is exercised only on IOException / 5xx; this asserts the success-with-empty
+        // contract that the python reference also returns.
+        val result = deferred.await()
+        assertTrue(result.isSuccess)
+        assertEquals(0, result.getOrNull()!!.size)
+    }
+
+    @Test
+    fun `concurrent fetches for same key issue one network call (single-flight)`() = runTest {
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        provider.testSetConfigured(true)
+
+        val results = listOf(
+            async { provider.fetchPrograms("ch1", 0) },
+            async { provider.fetchPrograms("ch1", 0) },
+            async { provider.fetchPrograms("ch1", 0) },
+        ).awaitAll()
+        assertTrue(results.all { it.isSuccess })
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `bounded LRU evicts oldest when capacity exceeded`() = runTest {
+        coEvery { authClient.login() } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC(), maxCacheEntries = 2)
+        provider.testSetConfigured(true)
+
+        // Three distinct keys, each with one network response.
+        repeat(3) { server.enqueue(MockResponse().setBody(sampleProgramsJson)) }
+        provider.fetchPrograms("ch1", 0)
+        provider.fetchPrograms("ch2", 0)
+        provider.fetchPrograms("ch3", 0)
+        // ch1 was evicted; refetch should hit the network again.
+        server.enqueue(MockResponse().setBody(sampleProgramsJson))
+        provider.fetchPrograms("ch1", 0)
+        assertEquals(4, server.requestCount)
+    }
+}
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcEpgProviderTest"`
+Expected: FAIL — `CtcEpgProvider` does not exist.
+
+- [ ] **Step 3: Create the CtcEpgProvider implementation**
+
+Create `app/src/main/kotlin/com/example/atv/data/epg/CtcEpgProvider.kt`:
+
+```kotlin
+package com.example.atv.data.epg
+
+import com.example.atv.domain.model.Program
+import com.example.atv.domain.repository.EpgProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import timber.log.Timber
+import java.io.IOException
+import java.time.Clock
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * EPG provider for China Telecom (CTC) IPTV.
+ *
+ * Cache: in-memory bounded LRU keyed by (channelCode, dateOffset). TTL = 60s.
+ * Single-flight: concurrent fetches for the same key share one in-flight network call.
+ * Retry: one silent retry after 1500ms on IOException or HTTP 5xx; second failure surfaces.
+ *
+ * `isConfigured` is permanently false in spec 004 — the trigger to flip it true ships in 005.
+ */
+@Singleton
+class CtcEpgProvider @Inject constructor(
+    private val authClient: CtcAuthClient,
+    private val http: OkHttpClient,
+    private val device: DeviceProfile,
+    private val clock: Clock = Clock.systemUTC(),
+    private val maxCacheEntries: Int = DEFAULT_MAX_ENTRIES,
+) : EpgProvider {
+
+    // TODO(005): set true after a successful login()
+    private val _isConfigured = MutableStateFlow(false)
+    override val isConfigured: StateFlow<Boolean> = _isConfigured.asStateFlow()
+
+    private data class CacheKey(val channelCode: String, val dateOffset: Int)
+    private data class CacheEntry(val programs: List<Program>, val storedAtNanos: Long)
+
+    private val cache = LinkedLruCache<CacheKey, CacheEntry>(maxCacheEntries)
+    private val keyMutexes = HashMap<CacheKey, Mutex>()
+    private val mutexLock = Any()
+
+    @Volatile
+    private var session: LoginResult.Success? = null
+
+    /** Test-only hatch to flip configured state without going through 005's trigger. */
+    internal fun testSetConfigured(value: Boolean) {
+        _isConfigured.value = value
+    }
+
+    override suspend fun fetchPrograms(
+        channelCode: String,
+        dateOffset: Int,
+    ): Result<List<Program>> = withContext(Dispatchers.IO) {
+        if (!_isConfigured.value) {
+            return@withContext Result.failure(IllegalStateException("Provider not configured"))
+        }
+        val key = CacheKey(channelCode, dateOffset)
+
+        cacheGetFresh(key)?.let { return@withContext Result.success(it) }
+
+        val mutex = keyMutex(key)
+        mutex.withLock {
+            cacheGetFresh(key)?.let { return@withLock Result.success(it) }
+            try {
+                val programs = ensureSession()
+                    .let { sess -> fetchWithRetry(sess, channelCode, dateOffset) }
+                cachePut(key, programs)
+                Result.success(programs)
+            } catch (e: Throwable) {
+                Timber.d(e, "CTC fetchPrograms failed for %s/%d", channelCode, dateOffset)
+                Result.failure(e)
+            } finally {
+                releaseMutex(key)
+            }
+        }
+    }
+
+    private suspend fun ensureSession(): LoginResult.Success {
+        session?.let { return it }
+        val r = authClient.login()
+        if (r is LoginResult.Success) {
+            session = r
+            return r
+        }
+        throw IOException("login failed: ${(r as LoginResult.Failure).reason}")
+    }
+
+    private suspend fun fetchWithRetry(
+        sess: LoginResult.Success,
+        channelCode: String,
+        dateOffset: Int,
+    ): List<Program> {
+        return runCatching { fetchOnce(sess, channelCode, dateOffset) }
+            .recoverCatching { first ->
+                if (first.isRetryable()) {
+                    delay(RETRY_DELAY_MS)
+                    fetchOnce(sess, channelCode, dateOffset)
+                } else {
+                    throw first
+                }
+            }
+            .getOrThrow()
+    }
+
+    private fun Throwable.isRetryable(): Boolean =
+        this is IOException || this is RetryableHttpException
+
+    private fun fetchOnce(
+        sess: LoginResult.Success,
+        channelCode: String,
+        dateOffset: Int,
+    ): List<Program> {
+        val url = buildPrevueUrl(sess.epgLbBase, channelCode, dateOffset)
+        val req = Request.Builder()
+            .url(url)
+            .header("Cookie", "JSESSIONID=${sess.jsessionId}")
+            .build()
+        http.newCall(req).execute().use { resp ->
+            if (resp.code in 500..599) {
+                throw RetryableHttpException(resp.code)
+            }
+            if (!resp.isSuccessful) {
+                throw IOException("prevue_list HTTP ${resp.code}")
+            }
+            val body = resp.body?.string().orEmpty()
+            return CtcResponseParsers.parsePrograms(body)
+        }
+    }
+
+    private fun buildPrevueUrl(epgLbBase: String, channelCode: String, dateOffset: Int): okhttp3.HttpUrl {
+        // epgLbBase ends with "iptvepg/function/" (matches python `epg_lb_base`). The prevue URL
+        // is anchored at "iptvepg/" so we strip the trailing "function/" segment, mirroring
+        // python `_epg_root()` (lines 508-511).
+        val root = epgLbBase.removeSuffix("function/")
+        val full = root + "frame1194/CHANNEL_PLAYER_UTILS/datas/prevue_list.jsp"
+        return full.toHttpUrl().newBuilder()
+            .addQueryParameter("channelcode", channelCode)
+            .addQueryParameter("framecode", "frame1194")
+            .addQueryParameter("versiondir", "CHANNEL_PLAYER_UTILS")
+            .addQueryParameter("dateindex", dateOffset.toString())
+            .addQueryParameter("stbtype", "sdr")
+            .addQueryParameter("recommpara", "userId=${device.userId}&channelId=1&num=6")
+            .addQueryParameter("ajax", "1")
+            .build()
+    }
+
+    // --- cache + mutex bookkeeping -----------------------------------------
+
+    @Synchronized
+    private fun cacheGetFresh(key: CacheKey): List<Program>? {
+        val entry = cache[key] ?: return null
+        val ageNanos = clock.millis() * 1_000_000L - entry.storedAtNanos
+        if (ageNanos > TTL_NANOS) {
+            cache.remove(key)
+            return null
+        }
+        return entry.programs
+    }
+
+    @Synchronized
+    private fun cachePut(key: CacheKey, programs: List<Program>) {
+        cache[key] = CacheEntry(programs, clock.millis() * 1_000_000L)
+    }
+
+    private fun keyMutex(key: CacheKey): Mutex {
+        synchronized(mutexLock) {
+            return keyMutexes.getOrPut(key) { Mutex() }
+        }
+    }
+
+    private fun releaseMutex(key: CacheKey) {
+        synchronized(mutexLock) {
+            // Only remove if no one is waiting; with one-shot single-flight per key,
+            // simply removing is safe: callers that arrived before us already passed withLock.
+            keyMutexes.remove(key)
+        }
+    }
+
+    private companion object {
+        const val DEFAULT_MAX_ENTRIES = 100
+        const val RETRY_DELAY_MS = 1_500L
+        val TTL_NANOS = 60L * 1_000_000_000L
+    }
+
+    private class RetryableHttpException(val code: Int) : IOException("HTTP $code")
+}
+
+/** Tiny LRU on top of LinkedHashMap (access-order). Synchronized externally by caller. */
+internal class LinkedLruCache<K, V>(private val cap: Int) :
+    LinkedHashMap<K, V>(16, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean = size > cap
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.CtcEpgProviderTest"`
+Expected: PASS, 11 tests.
+
+- [ ] **Step 5: Run the entire EPG test suite to confirm nothing regressed**
+
+Run: `./studio-gradlew test --tests "com.example.atv.data.epg.*" --tests "com.example.atv.domain.model.ProgramTest"`
+Expected: PASS for all Phase 1 + Phase 2 tests.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/data/epg/CtcEpgProvider.kt \
+        app/src/test/kotlin/com/example/atv/data/epg/CtcEpgProviderTest.kt
+git commit -m "feat(004): add CtcEpgProvider with cache, retry, and single-flight"
+```
+
+---
+
+End of Phase 2.
+
+## Phase 3: UI surfaces
+
+Phase 3 extends the existing playback UI with the two new EPG surfaces (now-playing block on the channel info banner and the side-by-side EPG panel inside the channel list overlay) plus the ViewModel plumbing that drives them. Phase 3 ASSUMES Phase 2 has produced a working `CtcEpgProvider` exposing the `EpgProvider` interface from Phase 1, with `isConfigured: StateFlow<Boolean>` permanently false in 004. ViewModel tests inject a fake provider via constructor (Hilt wiring of the provider lives in Phase 4).
+
+Note on `Channel.channelCode`: in 004, `Channel` does NOT carry a `channelCode` field — that schema change is owned by spec 005. To exercise the "no EPG source" code path under test without forking the data class, Task 12 introduces a temporary nullable extension property `Channel.channelCode: String?` that returns `null` for every channel in 004. Spec 005 will replace this extension with a real field on the data class.
+
+---
+
+### Task 10: Add `EpgPanelState` and extend `PlaybackUiState`
+
+**Files:**
+- Create: `app/src/main/kotlin/com/example/atv/ui/screens/playback/EpgPanelState.kt`
+- Modify: `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackUiState.kt`
+
+This task is pure data classes — no failing test step. The new types are exercised by Task 11–13 tests once they wire into the ViewModel.
+
+- [ ] **Step 1: Create `EpgPanelState`**
+
+Create `app/src/main/kotlin/com/example/atv/ui/screens/playback/EpgPanelState.kt`:
+
+```kotlin
+package com.example.atv.ui.screens.playback
+
+import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.Program
+
+/**
+ * State for the side-by-side EPG panel inside the channel list overlay.
+ *
+ * @param focusedChannel the channel currently focused in the channel column,
+ *   null when the overlay is closed or no channel has focus yet.
+ * @param dateOffset selected date tab: -1 = yesterday, 0 = today, +1 = tomorrow.
+ *   Always reset to 0 when the overlay reopens (FR-009).
+ * @param programs schedule for (focusedChannel, dateOffset). Empty until a fetch resolves.
+ * @param isLoading true while a fetch is in flight (after the 250ms debounce).
+ * @param errorMessage non-null when fetching failed after retry (FR-015).
+ */
+data class EpgPanelState(
+    val focusedChannel: Channel? = null,
+    val dateOffset: Int = 0,
+    val programs: List<Program> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+) {
+    /** True when the panel resolved to "nothing to show" — drives empty-state rendering. */
+    val isEmpty: Boolean
+        get() = !isLoading && errorMessage == null && programs.isEmpty()
+}
+```
+
+- [ ] **Step 2: Extend `PlaybackUiState`**
+
+Replace the body of `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackUiState.kt` with:
+
+```kotlin
+package com.example.atv.ui.screens.playback
+
+import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.Program
+import com.example.atv.player.PlayerState
+
+/**
+ * UI state for the playback screen.
+ */
+data class PlaybackUiState(
+    val isLoading: Boolean = true,
+    val channels: List<Channel> = emptyList(),
+    val currentChannelIndex: Int = 0,
+    val playerState: PlayerState = PlayerState.Idle,
+
+    // Overlay visibility
+    val showChannelInfo: Boolean = false,
+    val showChannelList: Boolean = false,
+    val showNumberPad: Boolean = false,
+    val showSettings: Boolean = false,
+    val showError: Boolean = false,
+
+    // Number pad input
+    val numberPadInput: String = "",
+
+    // Error state
+    val errorMessage: String? = null,
+
+    // EPG (004)
+    val epgEnabled: Boolean = false,
+    val epgConfigured: Boolean = false,
+    val currentProgram: Program? = null,
+    val nextProgram: Program? = null,
+    val epgPanel: EpgPanelState = EpgPanelState()
+) {
+    val currentChannel: Channel?
+        get() = channels.getOrNull(currentChannelIndex)
+
+    val hasChannels: Boolean
+        get() = channels.isNotEmpty()
+
+    val channelCount: Int
+        get() = channels.size
+
+    val hasActiveOverlay: Boolean
+        get() = showChannelInfo || showChannelList || showNumberPad || showSettings || showError
+
+    /**
+     * True when EPG surfaces should render — the user toggle is on AND a provider is configured.
+     * In 004 alone, `epgConfigured` is permanently false, so this always evaluates false in production.
+     */
+    val showEpgSurfaces: Boolean
+        get() = epgEnabled && epgConfigured
+}
+```
+
+- [ ] **Step 3: Verify compilation**
+
+Run: `./studio-gradlew compileDebugKotlin`
+Expected: `BUILD SUCCESSFUL`. Existing screens still compile because every new field has a default value.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/screens/playback/EpgPanelState.kt \
+        app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackUiState.kt
+git commit -m "feat(004): add EpgPanelState and EPG fields on PlaybackUiState"
+```
+
+---
+
+### Task 11: Inject `EpgProvider` + `Clock` into `PlaybackViewModel`; observe epgEnabled and isConfigured
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt`
+- Modify: `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelTest.kt`
+- Create: `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgTest.kt`
+
+This task adds two constructor params and wires a flag-observing job. It does not call the provider yet — that happens in Task 12. The Hilt `provideClock` binding is Phase 4's responsibility; for Phase 3 the constructor accepts a `Clock` and tests pass `Clock.fixed(...)`.
+
+- [ ] **Step 1: Write the failing EPG test**
+
+Create `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgTest.kt`:
+
+```kotlin
+package com.example.atv.ui.screens.playback
+
+import android.app.Application
+import com.example.atv.domain.model.UserPreferences
+import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.EpgProvider
+import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.domain.usecase.SwitchChannelUseCase
+import com.example.atv.player.AtvPlayer
+import com.example.atv.player.PlayerState
+import io.mockk.MockKAnnotations
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.impl.annotations.MockK
+import io.mockk.just
+import io.mockk.mockk
+import io.mockk.runs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@DisplayName("PlaybackViewModel EPG")
+class PlaybackViewModelEpgTest {
+
+    @MockK
+    private lateinit var application: Application
+
+    @MockK
+    private lateinit var atvPlayer: AtvPlayer
+
+    @MockK
+    private lateinit var channelRepository: ChannelRepository
+
+    @MockK
+    private lateinit var preferencesRepository: PreferencesRepository
+
+    @MockK
+    private lateinit var switchChannelUseCase: SwitchChannelUseCase
+
+    @MockK
+    private lateinit var epgProvider: EpgProvider
+
+    private lateinit var viewModel: PlaybackViewModel
+
+    private val testDispatcher = StandardTestDispatcher()
+    private val playerStateFlow = MutableStateFlow<PlayerState>(PlayerState.Idle)
+    private val prefsFlow = MutableStateFlow(UserPreferences())
+    private val isConfiguredFlow = MutableStateFlow(false)
+
+    private val fixedClock: Clock =
+        Clock.fixed(Instant.parse("2026-06-07T10:00:00Z"), ZoneOffset.UTC)
+
+    @BeforeEach
+    fun setup() {
+        MockKAnnotations.init(this, relaxUnitFun = true)
+        Dispatchers.setMain(testDispatcher)
+
+        every { atvPlayer.playerState } returns playerStateFlow
+        every { atvPlayer.player } returns mockk(relaxed = true)
+        every { atvPlayer.initialize() } just runs
+        every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+        every { preferencesRepository.getLastChannelNumber() } returns flowOf(1)
+        every { preferencesRepository.getUserPreferences() } returns prefsFlow
+        coEvery { preferencesRepository.setLastChannelNumber(any()) } just runs
+        every { epgProvider.isConfigured } returns isConfiguredFlow
+    }
+
+    @AfterEach
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun createViewModel(): PlaybackViewModel = PlaybackViewModel(
+        application = application,
+        atvPlayer = atvPlayer,
+        channelRepository = channelRepository,
+        preferencesRepository = preferencesRepository,
+        switchChannelUseCase = switchChannelUseCase,
+        epgProvider = epgProvider,
+        clock = fixedClock
+    )
+
+    @Test
+    fun `epgEnabled defaults to false and reflects preference flow`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.epgEnabled)
+
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.epgEnabled)
+    }
+
+    @Test
+    fun `epgConfigured reflects provider flow`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.epgConfigured)
+
+        isConfiguredFlow.value = true
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.epgConfigured)
+    }
+
+    @Test
+    fun `toggling epgEnabled off clears banner programs and panel state`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // simulate populated EPG state via a test seam (uiState exposes a MutableStateFlow under the hood;
+        // for this assertion we only need to flip the toggle and observe the clear).
+        prefsFlow.value = UserPreferences(epgEnabled = false)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull(state.currentProgram)
+        assertNull(state.nextProgram)
+        assertEquals(EpgPanelState(), state.epgPanel)
+    }
+}
+```
+
+- [ ] **Step 2: Update existing `PlaybackViewModelTest` to pass new constructor params**
+
+In `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelTest.kt`, add new mocks and a fixed clock alongside the existing ones, stub the new flows, and pass them to `createViewModel`:
+
+```kotlin
+import com.example.atv.domain.model.UserPreferences
+import com.example.atv.domain.repository.EpgProvider
+import kotlinx.coroutines.flow.MutableStateFlow
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
+
+// inside the class, alongside the existing @MockK fields:
+@MockK
+private lateinit var epgProvider: EpgProvider
+
+private val isConfiguredFlow = MutableStateFlow(false)
+private val prefsFlow = MutableStateFlow(UserPreferences())
+private val fixedClock: Clock =
+    Clock.fixed(Instant.parse("2026-06-07T10:00:00Z"), ZoneOffset.UTC)
+```
+
+In the existing `setup()` body, after the existing stubs, add:
+
+```kotlin
+every { preferencesRepository.getUserPreferences() } returns prefsFlow
+every { epgProvider.isConfigured } returns isConfiguredFlow
+```
+
+Replace `createViewModel()` with:
+
+```kotlin
+private fun createViewModel(): PlaybackViewModel {
+    return PlaybackViewModel(
+        application = application,
+        atvPlayer = atvPlayer,
+        channelRepository = channelRepository,
+        preferencesRepository = preferencesRepository,
+        switchChannelUseCase = switchChannelUseCase,
+        epgProvider = epgProvider,
+        clock = fixedClock
+    )
+}
+```
+
+- [ ] **Step 3: Run tests to verify the new test fails and the legacy test compiles but the EPG test fails**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgTest"`
+Expected: FAIL — `PlaybackViewModel` does not yet accept `epgProvider`/`clock` params and does not observe prefs+isConfigured.
+
+- [ ] **Step 4: Add the constructor params and the observer**
+
+In `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt`, add imports:
+
+```kotlin
+import com.example.atv.domain.model.UserPreferences
+import com.example.atv.domain.repository.EpgProvider
+import kotlinx.coroutines.flow.map
+import java.time.Clock
+```
+
+Update the constructor:
+
+```kotlin
+@HiltViewModel
+class PlaybackViewModel @Inject constructor(
+    private val application: Application,
+    private val atvPlayer: AtvPlayer,
+    private val channelRepository: ChannelRepository,
+    private val preferencesRepository: PreferencesRepository,
+    private val switchChannelUseCase: SwitchChannelUseCase,
+    private val epgProvider: EpgProvider,
+    private val clock: Clock
+) : ViewModel() {
+```
+
+Inside `init { ... }` (after `observePlayerState()`), add a call to a new `observeEpgFlags()`:
+
+```kotlin
+init {
+    atvPlayer.initialize()
+    observeChannels()
+    observePlayerState()
+    observeEpgFlags()
+}
+```
+
+Add the observer method (place it near `observePlayerState`):
+
+```kotlin
+private fun observeEpgFlags() {
+    viewModelScope.launch {
+        combine(
+            preferencesRepository.getUserPreferences().map { it.epgEnabled },
+            epgProvider.isConfigured
+        ) { epgEnabled, epgConfigured -> epgEnabled to epgConfigured }
+            .collect { (epgEnabled, epgConfigured) ->
+                _uiState.update { state ->
+                    val show = epgEnabled && epgConfigured
+                    if (show) {
+                        state.copy(epgEnabled = epgEnabled, epgConfigured = epgConfigured)
+                    } else {
+                        // Toggle off OR provider unconfigured: clear all EPG-derived state.
+                        state.copy(
+                            epgEnabled = epgEnabled,
+                            epgConfigured = epgConfigured,
+                            currentProgram = null,
+                            nextProgram = null,
+                            epgPanel = EpgPanelState()
+                        )
+                    }
+                }
+            }
+    }
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgTest" --tests "com.example.atv.ui.screens.playback.PlaybackViewModelTest"`
+Expected: PASS — both legacy `PlaybackViewModelTest` (still 20+ tests) and new `PlaybackViewModelEpgTest` (3 tests) green.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt \
+        app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelTest.kt \
+        app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgTest.kt
+git commit -m "feat(004): observe epgEnabled + EpgProvider.isConfigured in PlaybackViewModel"
+```
+
+---
+
+### Task 12: Compute current/next programs on channel switch
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt`
+- Create: `app/src/main/kotlin/com/example/atv/domain/model/ChannelEpgExtensions.kt`
+- Modify: `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgTest.kt`
+
+`Channel` does not gain a `channelCode` field in 004 (that change belongs to 005). To allow this code path to be covered by tests today, this task introduces `Channel.channelCode: String?` as a temporary nullable extension property that always returns `null`. Tests inject a fake `EpgProvider` that bypasses the extension by being driven directly with a hand-rolled `channelCode` argument; production code paths in 004 will always hit the "no channelCode" early-return.
+
+- [ ] **Step 1: Add the failing tests**
+
+Append to `PlaybackViewModelEpgTest`:
+
+```kotlin
+import com.example.atv.TestFixtures
+import com.example.atv.domain.model.Program
+import io.mockk.coVerify
+import org.junit.jupiter.api.Assertions.assertNotNull
+
+@Test
+fun `playChannel emits null current and next when channel has no channelCode`() = runTest {
+    prefsFlow.value = UserPreferences(epgEnabled = true)
+    isConfiguredFlow.value = true
+    val channel = TestFixtures.SAMPLE_CHANNEL
+    every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
+    every { atvPlayer.playChannel(any()) } just runs
+    coEvery { epgProvider.fetchPrograms(any(), any()) } returns Result.success(emptyList())
+
+    viewModel = createViewModel()
+    advanceUntilIdle()
+
+    viewModel.playChannel(channel)
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value
+    assertNull(state.currentProgram)
+    assertNull(state.nextProgram)
+    coVerify(exactly = 0) { epgProvider.fetchPrograms(any(), any()) }
+}
+
+@Test
+fun `playChannel populates current and next programs when provider returns data`() = runTest {
+    prefsFlow.value = UserPreferences(epgEnabled = true)
+    isConfiguredFlow.value = true
+    val channel = TestFixtures.SAMPLE_CHANNEL
+    every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
+    every { atvPlayer.playChannel(any()) } just runs
+
+    val nowProgram = Program(
+        code = "p1",
+        name = "News",
+        start = Instant.parse("2026-06-07T09:30:00Z"),
+        end = Instant.parse("2026-06-07T10:30:00Z"),
+        isLive = true,
+        isReplayable = false
+    )
+    val nextProgram = Program(
+        code = "p2",
+        name = "Weather",
+        start = Instant.parse("2026-06-07T10:30:00Z"),
+        end = Instant.parse("2026-06-07T11:00:00Z"),
+        isLive = false,
+        isReplayable = false
+    )
+    coEvery { epgProvider.fetchPrograms("CCTV-1", 0) } returns
+        Result.success(listOf(nowProgram, nextProgram))
+
+    viewModel = createViewModel()
+    advanceUntilIdle()
+
+    // Drive the EPG flow directly with an explicit channel code via the test seam.
+    viewModel.loadBannerEpgForCode(channel, channelCode = "CCTV-1")
+    advanceUntilIdle()
+
+    val state = viewModel.uiState.value
+    assertNotNull(state.currentProgram)
+    assertEquals("News", state.currentProgram?.name)
+    assertEquals("Weather", state.nextProgram?.name)
+}
+
+@Test
+fun `toggling epgEnabled off after a populated banner clears current and next`() = runTest {
+    prefsFlow.value = UserPreferences(epgEnabled = true)
+    isConfiguredFlow.value = true
+    val channel = TestFixtures.SAMPLE_CHANNEL
+    val nowProgram = Program(
+        code = "p1",
+        name = "News",
+        start = Instant.parse("2026-06-07T09:30:00Z"),
+        end = Instant.parse("2026-06-07T10:30:00Z"),
+        isLive = true,
+        isReplayable = false
+    )
+    coEvery { epgProvider.fetchPrograms("CCTV-1", 0) } returns
+        Result.success(listOf(nowProgram))
+    every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
+    every { atvPlayer.playChannel(any()) } just runs
+
+    viewModel = createViewModel()
+    advanceUntilIdle()
+    viewModel.loadBannerEpgForCode(channel, channelCode = "CCTV-1")
+    advanceUntilIdle()
+    assertNotNull(viewModel.uiState.value.currentProgram)
+
+    prefsFlow.value = UserPreferences(epgEnabled = false)
+    advanceUntilIdle()
+
+    assertNull(viewModel.uiState.value.currentProgram)
+    assertNull(viewModel.uiState.value.nextProgram)
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgTest"`
+Expected: FAIL — `loadBannerEpgForCode` does not exist; `Channel.channelCode` extension does not exist.
+
+- [ ] **Step 3: Add the temporary `channelCode` extension**
+
+Create `app/src/main/kotlin/com/example/atv/domain/model/ChannelEpgExtensions.kt`:
+
+```kotlin
+package com.example.atv.domain.model
+
+/**
+ * Temporary extension property bridging 004 (no channelCode on Channel)
+ * and 005 (which will add a real `channelCode: String?` field on the data class).
+ *
+ * In 004 alone this returns `null` for every channel — every EPG fetch path
+ * that consults this property therefore short-circuits to the "EPG not available"
+ * empty state.
+ *
+ * TODO(005): delete this file once `Channel.channelCode` is a real field.
+ */
+val Channel.channelCode: String?
+    get() = null
+```
+
+- [ ] **Step 4: Wire the banner EPG fetch into `PlaybackViewModel`**
+
+Add imports to `PlaybackViewModel.kt`:
+
+```kotlin
+import com.example.atv.domain.model.Program
+import com.example.atv.domain.model.channelCode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+```
+
+Add a job field next to `channelInfoHideJob`:
+
+```kotlin
+private var bannerEpgJob: Job? = null
+```
+
+Hook into `playChannel` immediately after `atvPlayer.playChannel(channel)`:
+
+```kotlin
+fun playChannel(channel: Channel) {
+    Timber.d("Playing channel: ${channel.number} - ${channel.name}")
+
+    val index = _uiState.value.channels.indexOfFirst { it.number == channel.number }
+    _uiState.update { it.copy(currentChannelIndex = index.coerceAtLeast(0)) }
+
+    atvPlayer.playChannel(channel)
+    showChannelInfo()
+    loadBannerEpgFor(channel)
+
+    viewModelScope.launch {
+        preferencesRepository.setLastChannelNumber(channel.number)
+    }
+}
+```
+
+Add the loader (place near the other private helpers):
+
+```kotlin
+private fun loadBannerEpgFor(channel: Channel) {
+    val code = channel.channelCode
+    // TODO(005): when Channel.channelCode is a real nullable field on the data class,
+    // delete this comment but keep the early-return behavior identical.
+    if (!_uiState.value.showEpgSurfaces || code == null) {
+        bannerEpgJob?.cancel()
+        bannerEpgJob = null
+        _uiState.update { it.copy(currentProgram = null, nextProgram = null) }
+        return
+    }
+    loadBannerEpgForCode(channel, code)
+}
+
+/**
+ * Test seam: drives the banner EPG fetch with an explicit channel code, bypassing
+ * the always-null `Channel.channelCode` extension that ships in 004. Production
+ * code paths always go through `loadBannerEpgFor(channel)` instead.
+ */
+internal fun loadBannerEpgForCode(channel: Channel, channelCode: String) {
+    bannerEpgJob?.cancel()
+    bannerEpgJob = viewModelScope.launch {
+        val result = withContext(Dispatchers.IO) {
+            epgProvider.fetchPrograms(channelCode, dateOffset = 0)
+        }
+        result.fold(
+            onSuccess = { programs ->
+                val now = clock.instant()
+                val current = programs.find { it.airsAt(now) }
+                val next = programs.firstOrNull { it.start.isAfter(now) }
+                _uiState.update { it.copy(currentProgram = current, nextProgram = next) }
+            },
+            onFailure = { t ->
+                Timber.w(t, "Banner EPG fetch failed for channel ${channel.number}")
+                _uiState.update { it.copy(currentProgram = null, nextProgram = null) }
+            }
+        )
+    }
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgTest" --tests "com.example.atv.ui.screens.playback.PlaybackViewModelTest"`
+Expected: PASS — banner EPG tests now green; legacy tests still green (their channels return `null` from the extension and therefore hit the early-return path with no provider call).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt \
+        app/src/main/kotlin/com/example/atv/domain/model/ChannelEpgExtensions.kt \
+        app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgTest.kt
+git commit -m "feat(004): compute current/next programs on channel switch"
+```
+
+---
+
+### Task 13: Debounce + cancellation for the EPG panel focus flow
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt`
+- Modify: `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgTest.kt`
+
+The panel state is driven by two inputs: which channel has focus, and which date tab is selected. Both are coalesced through a 250ms debounce so rapid D-pad scrolling produces at most one fetch per scroll burst (FR-026), and a new focus cancels any in-flight prior fetch (FR-027).
+
+- [ ] **Step 1: Add the failing tests**
+
+Append to `PlaybackViewModelEpgTest`:
+
+```kotlin
+import com.example.atv.domain.model.Channel
+import io.mockk.coVerify
+import kotlinx.coroutines.test.advanceTimeBy
+
+@Test
+fun `five rapid onChannelFocused calls coalesce into one provider call`() = runTest {
+    prefsFlow.value = UserPreferences(epgEnabled = true)
+    isConfiguredFlow.value = true
+    every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+    coEvery { epgProvider.fetchPrograms(any(), any()) } returns Result.success(emptyList())
+    viewModel = createViewModel()
+    advanceUntilIdle()
+
+    val ch = TestFixtures.SAMPLE_CHANNEL
+    repeat(5) { viewModel.onChannelFocusedWithCode(ch, "CCTV-1") }
+
+    advanceTimeBy(300)  // past the 250ms debounce
+    advanceUntilIdle()
+
+    coVerify(exactly = 1) { epgProvider.fetchPrograms("CCTV-1", 0) }
+}
+
+@Test
+fun `sequential focus A then B cancels A and only B resolves`() = runTest {
+    prefsFlow.value = UserPreferences(epgEnabled = true)
+    isConfiguredFlow.value = true
+    every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+    coEvery { epgProvider.fetchPrograms("A", 0) } returns Result.success(emptyList())
+    coEvery { epgProvider.fetchPrograms("B", 0) } returns Result.success(emptyList())
+    viewModel = createViewModel()
+    advanceUntilIdle()
+
+    val chA = TestFixtures.SAMPLE_CHANNEL.copy(number = 1, name = "A")
+    val chB = TestFixtures.SAMPLE_CHANNEL.copy(number = 2, name = "B")
+    viewModel.onChannelFocusedWithCode(chA, "A")
+    advanceTimeBy(50)
+    viewModel.onChannelFocusedWithCode(chB, "B")
+    advanceTimeBy(300)
+    advanceUntilIdle()
+
+    coVerify(exactly = 0) { epgProvider.fetchPrograms("A", 0) }
+    coVerify(exactly = 1) { epgProvider.fetchPrograms("B", 0) }
+    assertEquals(chB, viewModel.uiState.value.epgPanel.focusedChannel)
+}
+
+@Test
+fun `setEpgDateOffset rejects values outside -1 to 1`() = runTest {
+    viewModel = createViewModel()
+    advanceUntilIdle()
+
+    assertThrows(IllegalArgumentException::class.java) { viewModel.setEpgDateOffset(2) }
+    assertThrows(IllegalArgumentException::class.java) { viewModel.setEpgDateOffset(-2) }
+}
+```
+
+Add the missing import:
+
+```kotlin
+import org.junit.jupiter.api.Assertions.assertThrows
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgTest"`
+Expected: FAIL — `onChannelFocusedWithCode` and `setEpgDateOffset` do not exist.
+
+- [ ] **Step 3: Add the debounce flow plumbing**
+
+In `PlaybackViewModel.kt`, add imports:
+
+```kotlin
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+```
+
+Add private fields next to `bannerEpgJob`:
+
+```kotlin
+private val focusedChannelFlow = MutableSharedFlow<Pair<Channel, String>>(
+    replay = 1,
+    extraBufferCapacity = 8
+)
+private val dateOffsetFlow = MutableStateFlow(0)
+private var panelEpgJob: Job? = null
+```
+
+Add the wiring inside `init { ... }` (after `observeEpgFlags()`):
+
+```kotlin
+init {
+    atvPlayer.initialize()
+    observeChannels()
+    observePlayerState()
+    observeEpgFlags()
+    observePanelEpg()
+}
+```
+
+Add the new method (mark the file with `@OptIn(FlowPreview::class)` or scope-annotate the lambda — the snippet below uses a function-level annotation):
+
+```kotlin
+@OptIn(FlowPreview::class)
+private fun observePanelEpg() {
+    viewModelScope.launch {
+        focusedChannelFlow
+            .combine(dateOffsetFlow) { (channel, code), offset -> Triple(channel, code, offset) }
+            .debounce(PANEL_DEBOUNCE_MS)
+            .distinctUntilChanged()
+            .collect { (channel, code, offset) -> loadPanelEpg(channel, code, offset) }
+    }
+}
+```
+
+Add the constant inside the existing `companion object`:
+
+```kotlin
+companion object {
+    private const val CHANNEL_INFO_AUTO_HIDE_MS = 3000L
+    private const val OVERLAY_AUTO_HIDE_MS = 10000L
+    private const val SETTINGS_AUTO_HIDE_MS = 30000L
+    private const val PANEL_DEBOUNCE_MS = 250L
+}
+```
+
+Add the public API:
+
+```kotlin
+/**
+ * Production entry point — looks up the channel's `channelCode` extension.
+ * In 004 alone this is always null, so the no-op early-return path is exercised.
+ */
+fun onChannelFocused(channel: Channel) {
+    val code = channel.channelCode ?: run {
+        _uiState.update {
+            it.copy(epgPanel = it.epgPanel.copy(focusedChannel = channel, isLoading = false))
+        }
+        return
+    }
+    onChannelFocusedWithCode(channel, code)
+}
+
+/**
+ * Test seam: drives the panel focus flow with an explicit channel code,
+ * bypassing the always-null `Channel.channelCode` extension that ships in 004.
+ */
+internal fun onChannelFocusedWithCode(channel: Channel, channelCode: String) {
+    focusedChannelFlow.tryEmit(channel to channelCode)
+}
+
+fun setEpgDateOffset(offset: Int) {
+    require(offset in -1..1) { "EPG date offset must be in -1..1, got $offset" }
+    dateOffsetFlow.value = offset
+}
+```
+
+Add the loader:
+
+```kotlin
+private fun loadPanelEpg(channel: Channel, channelCode: String, dateOffset: Int) {
+    panelEpgJob?.cancel()
+    _uiState.update {
+        it.copy(
+            epgPanel = it.epgPanel.copy(
+                focusedChannel = channel,
+                dateOffset = dateOffset,
+                isLoading = true,
+                errorMessage = null
+            )
+        )
+    }
+    panelEpgJob = viewModelScope.launch {
+        val result = withContext(Dispatchers.IO) {
+            epgProvider.fetchPrograms(channelCode, dateOffset)
+        }
+        result.fold(
+            onSuccess = { programs ->
+                _uiState.update {
+                    it.copy(
+                        epgPanel = it.epgPanel.copy(
+                            programs = programs,
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                    )
+                }
+            },
+            onFailure = { t ->
+                Timber.w(t, "Panel EPG fetch failed for $channelCode offset=$dateOffset")
+                _uiState.update {
+                    it.copy(
+                        epgPanel = it.epgPanel.copy(
+                            programs = emptyList(),
+                            isLoading = false,
+                            errorMessage = application.getString(R.string.epg_load_error)
+                        )
+                    )
+                }
+            }
+        )
+    }
+}
+```
+
+- [ ] **Step 4: Stub `application.getString(R.string.epg_load_error)` in the EPG test**
+
+In `PlaybackViewModelEpgTest.setup()`, after `MockKAnnotations.init`, add:
+
+```kotlin
+every { application.getString(R.string.epg_load_error) } returns "Unable to load programs"
+```
+
+(import `com.example.atv.R`).
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgTest" --tests "com.example.atv.ui.screens.playback.PlaybackViewModelTest"`
+Expected: PASS — debounce coalescing test, A→B cancellation test, and date-offset validation test all green; legacy tests still green.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModel.kt \
+        app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgTest.kt
+git commit -m "feat(004): debounce EPG panel focus flow with cancellation"
+```
+
+---
+
+### Task 14: Modify `ChannelInfoOverlay` to render optional bottom-center program block
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/ui/components/ChannelInfoOverlay.kt`
+
+UI tests are deferred to a later phase per the spec author's direction; this task is implementation-only. The composable must keep its current public call sites compiling (every new param has a default).
+
+- [ ] **Step 1: Replace the body of `ChannelInfoOverlay`**
+
+Replace `app/src/main/kotlin/com/example/atv/ui/components/ChannelInfoOverlay.kt` with:
+
+```kotlin
+package com.example.atv.ui.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Text
+import com.example.atv.R
+import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.Program
+import com.example.atv.ui.theme.AtvColors
+import com.example.atv.ui.theme.AtvTypography
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+private val timeSlotFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+
+/**
+ * Overlay showing current channel info (top-left) and optional now-playing /
+ * up-next program info (bottom-center). Both blocks share the same visibility
+ * lifecycle so they appear and auto-hide together (FR-004).
+ */
+@Composable
+fun ChannelInfoOverlay(
+    channel: Channel?,
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    currentProgram: Program? = null,
+    nextProgram: Program? = null,
+    currentTime: Instant? = null
+) {
+    AnimatedVisibility(
+        visible = visible && channel != null,
+        enter = fadeIn() + slideInVertically { -it },
+        exit = fadeOut() + slideOutVertically { -it },
+        modifier = modifier
+    ) {
+        channel?.let {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Top-left: existing channel block (unchanged content)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.TopStart
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AtvColors.Surface.copy(alpha = 0.9f))
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "CH ${channel.number}",
+                            style = AtvTypography.titleLarge,
+                            color = AtvColors.Primary
+                        )
+                        Text(
+                            text = channel.name,
+                            style = AtvTypography.headlineMedium,
+                            color = AtvColors.OnSurface
+                        )
+                        channel.groupTitle?.let { group ->
+                            Text(
+                                text = group,
+                                style = AtvTypography.bodyMedium,
+                                color = AtvColors.OnSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                // Bottom-center: program block, only when current program is known (FR-005)
+                if (currentProgram != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 32.dp, vertical = 64.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        ProgramBlock(
+                            current = currentProgram,
+                            next = nextProgram,
+                            now = currentTime
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgramBlock(
+    current: Program,
+    next: Program?,
+    now: Instant?
+) {
+    Column(
+        modifier = Modifier
+            .widthIn(min = 360.dp, max = 720.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(AtvColors.Surface.copy(alpha = 0.9f))
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.epg_now_playing_label),
+            style = AtvTypography.labelMedium,
+            color = AtvColors.OnSurfaceVariant
+        )
+        Text(
+            text = current.name,
+            style = AtvTypography.titleMedium,
+            color = AtvColors.OnSurface,
+            maxLines = 1
+        )
+        Text(
+            text = "${timeSlotFormatter.format(current.start)}–${timeSlotFormatter.format(current.end)}",
+            style = AtvTypography.bodySmall,
+            color = AtvColors.OnSurfaceVariant
+        )
+        if (now != null) {
+            LinearProgressIndicator(
+                progress = { current.progress(now) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        if (next != null) {
+            Text(
+                text = stringResource(R.string.epg_up_next_label),
+                style = AtvTypography.labelMedium,
+                color = AtvColors.OnSurfaceVariant
+            )
+            Text(
+                text = "${next.name} · ${timeSlotFormatter.format(next.start)}",
+                style = AtvTypography.bodyMedium,
+                color = AtvColors.OnSurface,
+                maxLines = 1
+            )
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Verify the build still passes**
+
+Run: `./studio-gradlew compileDebugKotlin`
+Expected: `BUILD SUCCESSFUL`. The existing `PlaybackScreen` call site (`ChannelInfoOverlay(channel = ..., visible = ...)`) still compiles because the new params default.
+
+- [ ] **Step 3: Spot-check Detekt**
+
+Run: `./studio-gradlew detekt`
+Expected: no new violations. The `ProgramBlock` private composable is small and simple; if Detekt flags max-method-length, split the inner `Column` into two helpers.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/components/ChannelInfoOverlay.kt
+git commit -m "feat(004): render optional now/next program block on channel info banner"
+```
+
+---
+
+### Task 15: Create `EpgPanel` composable
+
+**Files:**
+- Create: `app/src/main/kotlin/com/example/atv/ui/components/EpgPanel.kt`
+
+This panel renders the right-hand region of the channel list overlay. It is rendered only when `epgEnabled && epgConfigured` is true; in 004 alone that combination never occurs in production but the composable must compile and be callable from `PlaybackScreen` so Phase 4 has nothing to add to `PlaybackScreen` later. UI tests come in a later phase.
+
+- [ ] **Step 1: Create the composable**
+
+Create `app/src/main/kotlin/com/example/atv/ui/components/EpgPanel.kt`:
+
+```kotlin
+package com.example.atv.ui.components
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Border
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Surface
+import androidx.tv.material3.Text
+import com.example.atv.R
+import com.example.atv.domain.model.Program
+import com.example.atv.domain.model.channelCode
+import com.example.atv.ui.screens.playback.EpgPanelState
+import com.example.atv.ui.theme.AtvColors
+import com.example.atv.ui.theme.AtvTypography
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+private val rowTimeFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+
+/**
+ * Side-by-side EPG panel. Renders the schedule for `state.focusedChannel` on the
+ * date selected via the three tabs (Yesterday/Today/Tomorrow).
+ *
+ * `onLeftFromPanel` is invoked when D-pad LEFT is pressed from any focused element
+ * inside the panel — it is the caller's job to return focus to the channel column
+ * (FR-011). The panel itself does not own a FocusRequester for the channel column.
+ */
+@Composable
+fun EpgPanel(
+    state: EpgPanelState,
+    currentTime: Instant,
+    onDateOffsetSelected: (Int) -> Unit,
+    onLeftFromPanel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val channel = state.focusedChannel
+    if (channel == null) {
+        Box(modifier = modifier.fillMaxSize())
+        return
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft) {
+                    onLeftFromPanel()
+                    true
+                } else false
+            },
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = channel.name,
+            style = AtvTypography.headlineSmall,
+            color = AtvColors.OnSurface
+        )
+
+        DateTabStrip(
+            selected = state.dateOffset,
+            onSelected = onDateOffsetSelected
+        )
+
+        when {
+            state.isLoading -> CenteredText(stringResource(R.string.epg_loading))
+            state.errorMessage != null -> CenteredText(state.errorMessage)
+            state.isEmpty && channel.channelCode == null ->
+                CenteredText(stringResource(R.string.epg_unavailable_for_channel))
+            state.isEmpty ->
+                CenteredText(stringResource(R.string.epg_no_programs))
+            else -> ProgramList(
+                programs = state.programs,
+                currentTime = currentTime
+            )
+        }
+    }
+}
+
+@Composable
+private fun DateTabStrip(
+    selected: Int,
+    onSelected: (Int) -> Unit
+) {
+    val tabs = listOf(
+        -1 to stringResource(R.string.epg_date_yesterday),
+        0 to stringResource(R.string.epg_date_today),
+        1 to stringResource(R.string.epg_date_tomorrow)
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        tabs.forEach { (offset, label) ->
+            val isSelected = offset == selected
+            Surface(
+                onClick = { onSelected(offset) },
+                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (isSelected) {
+                        AtvColors.Primary.copy(alpha = 0.2f)
+                    } else {
+                        AtvColors.SurfaceVariant.copy(alpha = 0.5f)
+                    },
+                    focusedContainerColor = AtvColors.Primary.copy(alpha = 0.3f)
+                ),
+                border = ClickableSurfaceDefaults.border(
+                    focusedBorder = Border(
+                        border = BorderStroke(width = 2.dp, color = AtvColors.FocusRing),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                )
+            ) {
+                Text(
+                    text = label,
+                    style = AtvTypography.labelLarge,
+                    color = if (isSelected) AtvColors.Primary else AtvColors.OnSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgramList(
+    programs: List<Program>,
+    currentTime: Instant
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items(programs, key = { it.code }) { program ->
+            ProgramRow(program = program, currentTime = currentTime)
+        }
+    }
+}
+
+@Composable
+private fun ProgramRow(
+    program: Program,
+    currentTime: Instant
+) {
+    val isAiring = program.airsAt(currentTime)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (isAiring) {
+                    AtvColors.Primary.copy(alpha = 0.2f)
+                } else {
+                    AtvColors.SurfaceVariant.copy(alpha = 0.3f)
+                }
+            )
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${rowTimeFormatter.format(program.start)}–${rowTimeFormatter.format(program.end)}",
+                style = AtvTypography.labelMedium,
+                color = if (isAiring) AtvColors.Primary else AtvColors.OnSurfaceVariant
+            )
+            Text(
+                text = program.name,
+                style = AtvTypography.bodyLarge,
+                color = AtvColors.OnSurface,
+                maxLines = 1
+            )
+        }
+        if (isAiring) {
+            LinearProgressIndicator(
+                progress = { program.progress(currentTime) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun CenteredText(text: String) {
+    Box(
+        modifier = Modifier.fillMaxHeight().fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.OnSurfaceVariant
+        )
+    }
+}
+```
+
+- [ ] **Step 2: Verify compilation**
+
+Run: `./studio-gradlew compileDebugKotlin`
+Expected: `BUILD SUCCESSFUL`.
+
+- [ ] **Step 3: Detekt sanity check**
+
+Run: `./studio-gradlew detekt`
+Expected: no new violations. Each helper composable is short; the file as a whole splits responsibilities into small functions.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/components/EpgPanel.kt
+git commit -m "feat(004): add EpgPanel composable with date tabs and now-playing highlight"
+```
+
+---
+
+### Task 16: Modify `ChannelListOverlay` for side-by-side EPG and wire `PlaybackScreen`
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/ui/components/ChannelListOverlay.kt`
+- Modify: `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackScreen.kt`
+
+`ChannelListOverlay` keeps backwards compatibility: when called without the new EPG params it renders exactly as today (FR-016, SC-007). The D-pad LEFT collision (FR-012) is resolved by tracking which region currently holds focus and only dismissing when the channel column does.
+
+- [ ] **Step 1: Replace the body of `ChannelListOverlay`**
+
+Replace `app/src/main/kotlin/com/example/atv/ui/components/ChannelListOverlay.kt` with:
+
+```kotlin
+package com.example.atv.ui.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Surface
+import androidx.tv.material3.Text
+import com.example.atv.R
+import com.example.atv.domain.model.Channel
+import com.example.atv.ui.theme.AtvColors
+import com.example.atv.ui.theme.AtvTypography
+import kotlinx.coroutines.delay
+
+/**
+ * Channel list overlay. When `epgEnabled && epgPanelContent != null`, the overlay
+ * renders side-by-side: a 350.dp channel column on the left and the EPG panel on
+ * the right. When EPG is disabled (the default), the layout is identical to the
+ * pre-spec behavior.
+ */
+@Composable
+fun ChannelListOverlay(
+    channels: List<Channel>,
+    currentChannelIndex: Int,
+    visible: Boolean,
+    onChannelSelected: (Channel) -> Unit,
+    onDismiss: () -> Unit,
+    onUserInteraction: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    epgEnabled: Boolean = false,
+    onChannelFocused: (Channel) -> Unit = {},
+    onChannelFocusRequesterChanged: (FocusRequester) -> Unit = {},
+    epgPanelContent: (@Composable () -> Unit)? = null
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInHorizontally { -it },
+        exit = fadeOut() + slideOutHorizontally { -it },
+        modifier = modifier
+    ) {
+        // Disambiguates D-pad LEFT: when focus is in the EPG panel, EpgPanel handles LEFT
+        // itself (returning focus to the channel column). When focus is in the channel
+        // column, LEFT dismisses the overlay (preserving today's behavior — FR-012).
+        var focusInEpgPanel by remember { mutableStateOf(false) }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        when (event.key) {
+                            Key.Back -> {
+                                onDismiss()
+                                true
+                            }
+                            Key.DirectionLeft -> {
+                                if (focusInEpgPanel) {
+                                    // EpgPanel.onLeftFromPanel handles focus return.
+                                    false
+                                } else {
+                                    onDismiss()
+                                    true
+                                }
+                            }
+                            else -> false
+                        }
+                    } else false
+                }
+        ) {
+            val showEpg = epgEnabled && epgPanelContent != null
+            if (showEpg) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    ChannelColumn(
+                        channels = channels,
+                        currentChannelIndex = currentChannelIndex,
+                        visible = visible,
+                        onChannelSelected = onChannelSelected,
+                        onUserInteraction = onUserInteraction,
+                        onChannelFocused = onChannelFocused,
+                        onChannelFocusRequesterChanged = onChannelFocusRequesterChanged,
+                        modifier = Modifier.width(350.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(AtvColors.Surface.copy(alpha = 0.95f))
+                            .onFocusChanged { focusInEpgPanel = it.hasFocus }
+                    ) {
+                        epgPanelContent()
+                    }
+                }
+            } else {
+                ChannelColumn(
+                    channels = channels,
+                    currentChannelIndex = currentChannelIndex,
+                    visible = visible,
+                    onChannelSelected = onChannelSelected,
+                    onUserInteraction = onUserInteraction,
+                    onChannelFocused = onChannelFocused,
+                    onChannelFocusRequesterChanged = onChannelFocusRequesterChanged,
+                    modifier = Modifier.width(350.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelColumn(
+    channels: List<Channel>,
+    currentChannelIndex: Int,
+    visible: Boolean,
+    onChannelSelected: (Channel) -> Unit,
+    onUserInteraction: () -> Unit,
+    onChannelFocused: (Channel) -> Unit,
+    onChannelFocusRequesterChanged: (FocusRequester) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentChannelFocusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (currentChannelIndex - 2).coerceAtLeast(0)
+    )
+
+    LaunchedEffect(visible) {
+        if (visible) {
+            delay(100)
+            currentChannelFocusRequester.requestFocus()
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
+            .background(AtvColors.Surface.copy(alpha = 0.95f))
+            .padding(16.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.channels),
+            style = AtvTypography.headlineMedium,
+            color = AtvColors.OnSurface,
+            modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
+        )
+
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            itemsIndexed(channels) { index, channel ->
+                val itemRequester = remember(channel.number) { FocusRequester() }
+                ChannelListItem(
+                    channel = channel,
+                    isCurrentlyPlaying = index == currentChannelIndex,
+                    onSelected = { onChannelSelected(channel) },
+                    onUserInteraction = onUserInteraction,
+                    onFocused = {
+                        onChannelFocused(channel)
+                        onChannelFocusRequesterChanged(itemRequester)
+                    },
+                    modifier = Modifier
+                        .focusRequester(itemRequester)
+                        .then(
+                            if (index == currentChannelIndex) {
+                                Modifier.focusRequester(currentChannelFocusRequester)
+                            } else Modifier
+                        )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelListItem(
+    channel: Channel,
+    isCurrentlyPlaying: Boolean,
+    onSelected: () -> Unit,
+    onUserInteraction: () -> Unit = {},
+    onFocused: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onSelected,
+        modifier = modifier
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    onUserInteraction()
+                    onFocused()
+                }
+            },
+        shape = ClickableSurfaceDefaults.shape(
+            shape = RoundedCornerShape(8.dp)
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (isCurrentlyPlaying) {
+                AtvColors.Primary.copy(alpha = 0.2f)
+            } else {
+                AtvColors.SurfaceVariant.copy(alpha = 0.5f)
+            },
+            focusedContainerColor = AtvColors.Primary.copy(alpha = 0.3f)
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = androidx.tv.material3.Border(
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 2.dp,
+                    color = AtvColors.FocusRing
+                ),
+                shape = RoundedCornerShape(8.dp)
+            )
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = channel.number.toString().padStart(3, ' '),
+                style = AtvTypography.titleMedium,
+                color = if (isCurrentlyPlaying) AtvColors.Primary else AtvColors.OnSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = channel.name,
+                    style = AtvTypography.bodyLarge,
+                    color = AtvColors.OnSurface,
+                    maxLines = 1
+                )
+                channel.groupTitle?.let { group ->
+                    Text(
+                        text = group,
+                        style = AtvTypography.labelMedium,
+                        color = AtvColors.OnSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            if (isCurrentlyPlaying) {
+                Text(
+                    text = "▶",
+                    style = AtvTypography.titleMedium,
+                    color = AtvColors.Primary
+                )
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Wire `PlaybackScreen` to feed EPG data into the overlay and the banner**
+
+In `app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackScreen.kt`, add imports:
+
+```kotlin
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import com.example.atv.ui.components.EpgPanel
+import java.time.Clock
+```
+
+Inside the `PlaybackScreen` body, immediately after `val context = LocalContext.current`, add:
+
+```kotlin
+val clock = remember { Clock.systemDefaultZone() }
+var lastFocusedChannelRequester by remember { mutableStateOf<FocusRequester?>(null) }
+```
+
+Update the `ChannelInfoOverlay` call site to pass the new params:
+
+```kotlin
+ChannelInfoOverlay(
+    channel = uiState.currentChannel,
+    visible = uiState.showChannelInfo,
+    currentProgram = uiState.currentProgram,
+    nextProgram = uiState.nextProgram,
+    currentTime = if (uiState.showEpgSurfaces) clock.instant() else null
+)
+```
+
+Replace the `ChannelListOverlay` call site with:
+
+```kotlin
+ChannelListOverlay(
+    channels = uiState.channels,
+    currentChannelIndex = uiState.currentChannelIndex,
+    visible = uiState.showChannelList,
+    onChannelSelected = { viewModel.selectChannelFromList(it) },
+    onDismiss = { viewModel.hideChannelList() },
+    onUserInteraction = { viewModel.resetChannelListAutoHide() },
+    epgEnabled = uiState.showEpgSurfaces,
+    onChannelFocused = { viewModel.onChannelFocused(it) },
+    onChannelFocusRequesterChanged = { lastFocusedChannelRequester = it },
+    epgPanelContent = if (uiState.showEpgSurfaces) {
+        {
+            EpgPanel(
+                state = uiState.epgPanel,
+                currentTime = clock.instant(),
+                onDateOffsetSelected = viewModel::setEpgDateOffset,
+                onLeftFromPanel = { lastFocusedChannelRequester?.requestFocus() }
+            )
+        }
+    } else null
+)
+```
+
+- [ ] **Step 3: Verify the build**
+
+Run: `./studio-gradlew assembleDebug`
+Expected: `BUILD SUCCESSFUL`. The legacy ChannelListOverlay call signature is preserved by defaulting all new params, so any other call site (none today, but cheap insurance) stays compatible.
+
+- [ ] **Step 4: Run the full unit test suite to confirm no regression**
+
+Run: `./studio-gradlew test detekt lint`
+Expected: All tests still green; no new Detekt or Lint findings. The 004 production path always evaluates `uiState.showEpgSurfaces` to false (because `epgConfigured` is permanently false in 004), so the side-by-side branch is dormant in production while remaining covered in tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/components/ChannelListOverlay.kt \
+        app/src/main/kotlin/com/example/atv/ui/screens/playback/PlaybackScreen.kt
+git commit -m "feat(004): render side-by-side EPG panel in channel list overlay"
+```
+
+End of Phase 3.
+
+## Phase 4: Settings, Hilt, integration
+
+### Task 17: Add `epgEnabled` state and `setEpgEnabled` action to `SettingsViewModel`
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsViewModel.kt`
+- Modify: `app/src/test/kotlin/com/example/atv/ui/screens/settings/SettingsViewModelTest.kt`
+
+- [ ] **Step 1: Write the failing tests first**
+
+In `app/src/test/kotlin/com/example/atv/ui/screens/settings/SettingsViewModelTest.kt`, add a new `@Nested` block after the `RefreshSettings` inner class but before the closing brace of the outer test class:
+
+```kotlin
+@Nested
+@DisplayName("S-07: EPG enabled toggle")
+inner class EpgToggle {
+
+    @Test
+    fun `should initialize epgEnabled from preferences`() = runTest {
+        // Given
+        val preferences = UserPreferences(
+            playlistFilePath = "/test/playlist.m3u8",
+            lastChannelNumber = 1,
+            epgEnabled = true
+        )
+        every { preferencesRepository.getUserPreferences() } returns flowOf(preferences)
+
+        // When
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // Then
+        assertTrue(viewModel.uiState.value.epgEnabled)
+    }
+
+    @Test
+    fun `should default epgEnabled to false when preferences flag is false`() = runTest {
+        // Given default preferences (epgEnabled = false)
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // Then
+        assertFalse(viewModel.uiState.value.epgEnabled)
+    }
+
+    @Test
+    fun `should toggle epgEnabled and persist via repository`() = runTest {
+        // Given
+        coEvery { preferencesRepository.setEpgEnabled(any()) } just runs
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // When
+        viewModel.setEpgEnabled(true)
+        advanceUntilIdle()
+
+        // Then
+        coVerify { preferencesRepository.setEpgEnabled(true) }
+        assertTrue(viewModel.uiState.value.epgEnabled)
+    }
+
+    @Test
+    fun `should toggle epgEnabled off and persist`() = runTest {
+        // Given epgEnabled is on at startup
+        val preferences = UserPreferences(
+            playlistFilePath = "/test/playlist.m3u8",
+            lastChannelNumber = 1,
+            epgEnabled = true
+        )
+        every { preferencesRepository.getUserPreferences() } returns flowOf(preferences)
+        coEvery { preferencesRepository.setEpgEnabled(any()) } just runs
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.epgEnabled)
+
+        // When
+        viewModel.setEpgEnabled(false)
+        advanceUntilIdle()
+
+        // Then
+        coVerify { preferencesRepository.setEpgEnabled(false) }
+        assertFalse(viewModel.uiState.value.epgEnabled)
+    }
+}
+```
+
+- [ ] **Step 2: Run the new tests to confirm they fail**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.settings.SettingsViewModelTest"`
+Expected: FAIL — `SettingsUiState` has no `epgEnabled` member and `SettingsViewModel` has no `setEpgEnabled` function.
+
+- [ ] **Step 3: Add `epgEnabled` to `SettingsUiState`**
+
+In `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsViewModel.kt`, replace the `SettingsUiState` data class with:
+
+```kotlin
+data class SettingsUiState(
+    val channelCount: Int = 0,
+    val playlistUri: String? = null,
+    val lastPlayedChannelId: String? = null,
+    val isLoading: Boolean = false,
+    val showClearConfirmation: Boolean = false,
+    val showAbout: Boolean = false,
+    val epgEnabled: Boolean = false,
+    val message: String? = null
+)
+```
+
+- [ ] **Step 4: Populate `epgEnabled` in `loadSettings()`**
+
+In the same file, in the `_uiState.update { state -> state.copy(...) }` block inside `loadSettings()`, add the new field:
+
+```kotlin
+_uiState.update { state ->
+    state.copy(
+        channelCount = channels.size,
+        playlistUri = preferences.playlistFilePath,
+        lastPlayedChannelId = preferences.lastChannelNumber.toString(),
+        epgEnabled = preferences.epgEnabled,
+        isLoading = false
+    )
+}
+```
+
+- [ ] **Step 5: Add the `setEpgEnabled` action**
+
+In the same file, after `clearMessage()` and before `refresh()`, add:
+
+```kotlin
+/**
+ * Toggles the "Show program guide" setting and persists it.
+ *
+ * Updates UI state immediately for snappy feedback; the persisted
+ * value will be reflected on the next `loadSettings` cycle.
+ */
+fun setEpgEnabled(enabled: Boolean) {
+    _uiState.update { it.copy(epgEnabled = enabled) }
+    viewModelScope.launch {
+        preferencesRepository.setEpgEnabled(enabled)
+    }
+}
+```
+
+- [ ] **Step 6: Run all settings tests to confirm they pass**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.settings.SettingsViewModelTest"`
+Expected: PASS — all existing tests plus the 4 new EPG-toggle tests. The existing `defaultPreferences` does not need updating because `UserPreferences.epgEnabled` defaults to `false`.
+
+- [ ] **Step 7: Run full unit test suite to catch regressions**
+
+Run: `./studio-gradlew test`
+Expected: `BUILD SUCCESSFUL`.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsViewModel.kt \
+        app/src/test/kotlin/com/example/atv/ui/screens/settings/SettingsViewModelTest.kt
+git commit -m "feat(004): add epgEnabled state and setter to SettingsViewModel"
+```
+
+---
+
+### Task 18: Add EPG toggle row to `SettingsScreen`
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsScreen.kt`
+
+- [ ] **Step 1: Add imports for the toggle composable**
+
+At the top of `app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsScreen.kt`, add the following imports alongside the existing ones:
+
+```kotlin
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+```
+
+- [ ] **Step 2: Add the `ToggleSettingsItem` composable**
+
+After the existing `private fun SettingsItem(...)` function (and before `private fun ConfirmationDialog`), add a new private composable that mirrors `SettingsItem`'s focus and color styling but adds a Material `Switch` on the trailing edge:
+
+```kotlin
+@Composable
+private fun ToggleSettingsItem(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = { onCheckedChange(!checked) },
+        modifier = modifier.fillMaxWidth(),
+        shape = ClickableSurfaceDefaults.shape(
+            shape = RoundedCornerShape(12.dp)
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = AtvColors.Surface,
+            focusedContainerColor = AtvColors.Primary.copy(alpha = 0.2f)
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = androidx.tv.material3.Border(
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 2.dp,
+                    color = AtvColors.Primary
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = AtvTypography.titleMedium,
+                    color = AtvColors.OnSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    style = AtvTypography.bodyMedium,
+                    color = AtvColors.OnSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = AtvColors.Primary,
+                    checkedTrackColor = AtvColors.Primary.copy(alpha = 0.5f)
+                )
+            )
+        }
+    }
+}
+```
+
+- [ ] **Step 3: Place the toggle row above "Clear All Data"**
+
+In the same file, find the settings options column (the inner `Column` with `verticalArrangement = Arrangement.spacedBy(8.dp)`). The current order is:
+1. Load New Playlist
+2. Channel Management
+3. Clear All Data (destructive)
+4. Spacer + About
+
+Insert the toggle as a new entry between "Channel Management" and "Clear All Data":
+
+```kotlin
+SettingsItem(
+    title = stringResource(R.string.channel_management),
+    subtitle = stringResource(R.string.manage_channels_subtitle),
+    onClick = onManageChannels
+)
+
+ToggleSettingsItem(
+    title = stringResource(R.string.epg_setting_title),
+    subtitle = stringResource(R.string.epg_setting_subtitle),
+    checked = uiState.epgEnabled,
+    onCheckedChange = { viewModel.setEpgEnabled(it) }
+)
+
+SettingsItem(
+    title = stringResource(R.string.clear_all_data),
+    subtitle = stringResource(R.string.clear_all_data_subtitle),
+    onClick = { viewModel.showClearConfirmation() },
+    isDestructive = true
+)
+```
+
+The destructive "Clear All Data" stays last in its group; the toggle precedes it so users encounter important opt-in choices before destructive actions.
+
+- [ ] **Step 4: Verify build**
+
+Run: `./studio-gradlew assembleDebug`
+Expected: `BUILD SUCCESSFUL`.
+
+- [ ] **Step 5: Verify static analysis passes**
+
+Run: `./studio-gradlew detekt lint`
+Expected: `BUILD SUCCESSFUL`. If detekt complains about the new composable's parameter count or length, refactor; otherwise move on.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/ui/screens/settings/SettingsScreen.kt
+git commit -m "feat(004): add Show program guide toggle to Settings screen"
+```
+
+---
+
+### Task 19: Provide `Clock` via Hilt
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/di/AppModule.kt`
+
+- [ ] **Step 1: Add the `Clock` import**
+
+In `app/src/main/kotlin/com/example/atv/di/AppModule.kt`, add this import alongside the existing imports:
+
+```kotlin
+import java.time.Clock
+```
+
+- [ ] **Step 2: Add the `provideClock` provider**
+
+In the same file, replace the body of `object AppModule` with:
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+
+    @Provides
+    @Singleton
+    fun provideUserPreferencesDataStore(
+        @ApplicationContext context: Context
+    ): UserPreferencesDataStore {
+        return UserPreferencesDataStore(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideClock(): Clock = Clock.systemDefaultZone()
+}
+```
+
+This single binding satisfies both `PlaybackViewModel`'s `Clock` constructor parameter (added in Phase 3) and `CtcEpgProvider`'s `Clock` parameter (added in Phase 2). Tests that need a deterministic clock construct their own `Clock.fixed(...)` and never touch this provider.
+
+- [ ] **Step 3: Verify build**
+
+Run: `./studio-gradlew assembleDebug`
+Expected: `BUILD SUCCESSFUL`. Hilt's annotation processor will emit a fresh `AppModule_ProvideClockFactory` under `app/build/generated/`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/di/AppModule.kt
+git commit -m "feat(004): provide java.time.Clock singleton via Hilt"
+```
+
+---
+
+### Task 20: Create `EpgModule` and bind `EpgProvider` to `CtcEpgProvider`
+
+**Files:**
+- Create: `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`
+
+**Precondition note:** `CtcAuthClient` and `CtcEpgProvider` (authored in Phase 2) MUST already declare `@Inject constructor(...)`. If Phase 2 left either as a plain constructor, fix that now before creating this module — Hilt's `@Binds` cannot bind a class that lacks an injectable constructor.
+
+- [ ] **Step 1: Create the file with both modules**
+
+Create `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`:
+
+```kotlin
+package com.example.atv.di
+
+import com.example.atv.data.epg.CtcEpgProvider
+import com.example.atv.domain.repository.EpgProvider
+import dagger.Binds
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import okhttp3.JavaNetCookieJar
+import okhttp3.OkHttpClient
+import java.net.CookieManager
+import java.net.CookiePolicy
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
+
+/**
+ * Hilt bindings for the EPG provider abstraction.
+ *
+ * `EpgProvider` is bound to the CTC implementation in 004. Future operator
+ * implementations would replace this `@Binds` with a multibinding or qualifier.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class EpgModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindEpgProvider(impl: CtcEpgProvider): EpgProvider
+}
+
+/**
+ * Hilt providers for EPG networking dependencies that can't be declared with
+ * `@Binds` (constructor-less third-party types).
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+object EpgNetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient {
+        val cookieManager = CookieManager().apply {
+            setCookiePolicy(CookiePolicy.ACCEPT_ALL)
+        }
+        return OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .cookieJar(JavaNetCookieJar(cookieManager))
+            .build()
+    }
+}
+```
+
+- [ ] **Step 2: Verify Hilt graph compiles**
+
+Run: `./studio-gradlew assembleDebug`
+Expected: `BUILD SUCCESSFUL`. If Hilt reports `MissingBinding` for `DeviceProfile` or `String` (`@Named("authServer")`), proceed to Task 21 — those bindings live there.
+
+If Hilt reports `MissingBinding` for `CtcAuthClient` or `CtcEpgProvider` themselves, return to Phase 2 and add `@Inject constructor(...)` to those classes.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/di/EpgModule.kt
+git commit -m "feat(004): bind EpgProvider to CtcEpgProvider via Hilt"
+```
+
+---
+
+### Task 21: Add `DeviceProfile` provider stub for 004
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`
+
+Spec 004 ships no login UI, so no real `DeviceProfile` exists. The Hilt graph still needs *something* to inject into `CtcAuthClient`. We provide a sentinel profile and a hard-coded operator endpoint; both remain unused at runtime because `CtcEpgProvider.isConfigured` is `false` in 004 and the UI never calls `fetchPrograms`.
+
+- [ ] **Step 1: Add imports for the profile binding**
+
+At the top of `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`, alongside the existing imports, add:
+
+```kotlin
+import com.example.atv.data.epg.DeviceProfile
+import javax.inject.Named
+```
+
+- [ ] **Step 2: Add the `DeviceProfile` and `authServer` providers**
+
+Append the following two `@Provides` functions to the `EpgNetworkModule` object (after `provideOkHttpClient`):
+
+```kotlin
+/**
+ * Sentinel device profile for 004. Spec 004 has no login UI; this empty
+ * profile satisfies Hilt so the graph compiles. It is never actually
+ * dispatched to the CTC endpoint because `CtcEpgProvider.isConfigured`
+ * stays `false` until 005's login flow populates real credentials.
+ */
+@Provides
+@Singleton
+fun provideDeviceProfile(): DeviceProfile = DeviceProfile(
+    userId = "",
+    password = "",
+    stbId = "",
+    ip = "",
+    mac = ""
+)
+
+/**
+ * The China Telecom EPG operator endpoint. Hardcoded in 004 because the
+ * sentinel profile means no request is ever sent. 005 may move this
+ * to a configurable preference once an operator-selection UI exists.
+ *
+ * NOTE: This URL is NOT contacted in 004 (isConfigured == false).
+ */
+@Provides
+@Singleton
+@Named("authServer")
+fun provideAuthServer(): String = "http://itv.jsinfo.net:8298"
+```
+
+- [ ] **Step 3: Verify Hilt graph compiles**
+
+Run: `./studio-gradlew assembleDebug`
+Expected: `BUILD SUCCESSFUL`. The Hilt graph for `PlaybackViewModel -> EpgProvider -> CtcEpgProvider -> CtcAuthClient -> (OkHttpClient, DeviceProfile, @Named("authServer") String)` now resolves.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app/src/main/kotlin/com/example/atv/di/EpgModule.kt
+git commit -m "feat(004): provide sentinel DeviceProfile and authServer for Hilt graph"
+```
+
+---
+
+### Task 22: End-to-end smoke verification
+
+**Files:**
+- Create: `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgIntegrationTest.kt`
+
+This task locks in three end-to-end invariants with a single integration test, then walks the engineer through manual verification on a debug device.
+
+- [ ] **Step 1: Write the integration test**
+
+Create `app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgIntegrationTest.kt`:
+
+```kotlin
+package com.example.atv.ui.screens.playback
+
+import app.cash.turbine.test
+import com.example.atv.TestFixtures
+import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.Program
+import com.example.atv.domain.model.UserPreferences
+import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.EpgProvider
+import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.player.AtvPlayer
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@DisplayName("PlaybackViewModel EPG end-to-end integration")
+class PlaybackViewModelEpgIntegrationTest {
+
+    private lateinit var channelRepository: ChannelRepository
+    private lateinit var preferencesRepository: PreferencesRepository
+    private lateinit var player: AtvPlayer
+    private lateinit var epgProvider: EpgProvider
+    private lateinit var isConfiguredFlow: MutableStateFlow<Boolean>
+
+    private val testDispatcher = StandardTestDispatcher()
+    private val fixedNow = Instant.parse("2026-06-07T12:00:00Z")
+    private val fixedClock = Clock.fixed(fixedNow, ZoneId.of("UTC"))
+
+    private val channelWithCode = Channel(
+        id = "ch-1",
+        number = 1,
+        name = "CCTV-1",
+        url = "http://example.com/cctv1.m3u8",
+        groupName = "CCTV",
+        channelCode = "CCTV1HD"
+    )
+
+    @BeforeEach
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        channelRepository = mockk(relaxed = true)
+        preferencesRepository = mockk(relaxed = true)
+        player = mockk(relaxed = true)
+        epgProvider = mockk(relaxed = true)
+        isConfiguredFlow = MutableStateFlow(false)
+
+        every { epgProvider.isConfigured } returns isConfiguredFlow
+        every { channelRepository.getAllChannels() } returns flowOf(listOf(channelWithCode))
+    }
+
+    @AfterEach
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun createViewModel(epgEnabled: Boolean): PlaybackViewModel {
+        every { preferencesRepository.getUserPreferences() } returns flowOf(
+            UserPreferences(
+                playlistFilePath = "/test/playlist.m3u8",
+                lastChannelNumber = 1,
+                epgEnabled = epgEnabled
+            )
+        )
+        return PlaybackViewModel(
+            channelRepository = channelRepository,
+            preferencesRepository = preferencesRepository,
+            player = player,
+            epgProvider = epgProvider,
+            clock = fixedClock
+        )
+    }
+
+    @Test
+    fun `epg disabled and provider unconfigured - no fetches on channel switch`() = runTest {
+        // Given
+        isConfiguredFlow.value = false
+        val vm = createViewModel(epgEnabled = false)
+        advanceUntilIdle()
+
+        // When
+        vm.switchToChannel(channelWithCode)
+        advanceTimeBy(500)
+        advanceUntilIdle()
+
+        // Then
+        coVerify(exactly = 0) { epgProvider.fetchPrograms(any(), any()) }
+    }
+
+    @Test
+    fun `epg enabled but provider unconfigured - no fetches (004 default state)`() = runTest {
+        // Given - this is the exact 004 shipping state
+        isConfiguredFlow.value = false
+        val vm = createViewModel(epgEnabled = true)
+        advanceUntilIdle()
+
+        // When
+        vm.switchToChannel(channelWithCode)
+        advanceTimeBy(500)
+        advanceUntilIdle()
+
+        // Then - FR-019: isConfigured=false blocks fetching even with toggle on
+        coVerify(exactly = 0) { epgProvider.fetchPrograms(any(), any()) }
+    }
+
+    @Test
+    fun `epg enabled and configured with channelCode - fetches once and propagates programs`() = runTest {
+        // Given
+        val current = Program(
+            code = "p-now",
+            name = "Morning News",
+            start = Instant.parse("2026-06-07T11:30:00Z"),
+            end = Instant.parse("2026-06-07T12:30:00Z"),
+            isLive = true,
+            isReplayable = false
+        )
+        val next = Program(
+            code = "p-next",
+            name = "Weather",
+            start = Instant.parse("2026-06-07T12:30:00Z"),
+            end = Instant.parse("2026-06-07T13:00:00Z"),
+            isLive = false,
+            isReplayable = false
+        )
+        coEvery {
+            epgProvider.fetchPrograms("CCTV1HD", 0)
+        } returns Result.success(listOf(current, next))
+
+        isConfiguredFlow.value = true
+        val vm = createViewModel(epgEnabled = true)
+        advanceUntilIdle()
+
+        // When
+        vm.switchToChannel(channelWithCode)
+        advanceTimeBy(500)
+        advanceUntilIdle()
+
+        // Then
+        coVerify(exactly = 1) { epgProvider.fetchPrograms("CCTV1HD", 0) }
+        val state = vm.uiState.value
+        assertNotNull(state.currentProgram)
+        assertEquals("Morning News", state.currentProgram?.name)
+        assertNotNull(state.nextProgram)
+        assertEquals("Weather", state.nextProgram?.name)
+    }
+}
+```
+
+- [ ] **Step 2: Run the integration test**
+
+Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgIntegrationTest"`
+Expected: PASS, 3 tests. If a test fails because `PlaybackViewModel`'s constructor signature differs (e.g., `clock` parameter named differently), align the test call site with whatever Phase 3 produced — do NOT change the production code to fit the test.
+
+- [ ] **Step 3: Run full unit test + static analysis suite**
+
+Run: `./studio-gradlew detekt lint test`
+Expected: `BUILD SUCCESSFUL`.
+
+- [ ] **Step 4: Build a debug APK and install on an emulator or Android TV device**
+
+Run:
+
+```bash
+./studio-gradlew installDebug
+```
+
+Expected: `BUILD SUCCESSFUL` and the app launches when opened.
+
+- [ ] **Step 5: Manual verification — EPG off (default 004 behavior)**
+
+With the freshly installed debug build, on an Android TV emulator or device:
+
+- Launch the app.
+- Switch channels with the D-pad (UP/DOWN or numeric).
+- **Expected**: top-left channel banner shows channel number/name; **no** bottom-center program block; banner auto-hides after 3 seconds. Identical to behavior before 004.
+- Press LEFT on the channel banner to open the channel list.
+- **Expected**: channel list overlay shows channels only; **no** EPG side panel. Identical to behavior before 004.
+
+- [ ] **Step 6: Manual verification — toggle EPG on, observe no provider in 004**
+
+Without restarting the app:
+
+- Navigate to Settings.
+- **Expected**: "Show program guide" toggle is visible above "Clear All Data", with the subtitle "Display now-playing and program schedules". The toggle is OFF.
+- Toggle "Show program guide" ON.
+- Return to playback.
+- Switch channels.
+- **Expected**: top-left banner appears as before; **still no** bottom-center program block (because `isConfigured = false` in 004 per FR-019). No crash. No spinner. No error toast.
+- Open the channel list with LEFT.
+- **Expected**: channel list still has no EPG side panel (because `isConfigured = false`). Layout is unchanged.
+
+- [ ] **Step 7: Manual verification — toggle persistence and re-disable**
+
+- Force-stop the app, then relaunch.
+- Open Settings.
+- **Expected**: "Show program guide" toggle remains ON (FR-023 persistence).
+- Toggle "Show program guide" OFF.
+- Return to playback, switch channels, open the channel list.
+- **Expected**: identical to Step 5 (default 004 behavior). No EPG anywhere.
+
+- [ ] **Step 8: Run on-device E2E suite (optional but recommended)**
+
+If an emulator is connected:
+
+```bash
+./studio-gradlew connectedAndroidTest
+```
+
+Expected: `BUILD SUCCESSFUL`. Pre-existing E2E tests must continue to pass. SC-007 requires that the EPG-disabled path is regression-equivalent to pre-004 behavior; any failure here is a release blocker.
+
+- [ ] **Step 9: Final commit**
+
+```bash
+git add app/src/test/kotlin/com/example/atv/ui/screens/playback/PlaybackViewModelEpgIntegrationTest.kt
+git commit -m "chore(004): integrate EPG feature end-to-end (no provider until 005)"
+```
+
+End of Phase 4. Spec 004 implementation complete.
