@@ -1,6 +1,8 @@
 package com.example.atv.ui.screens.playback
 
 import android.app.Application
+import com.example.atv.TestFixtures
+import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.EpgProvider
@@ -10,6 +12,7 @@ import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.impl.annotations.MockK
 import io.mockk.just
@@ -27,6 +30,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -134,5 +138,97 @@ class PlaybackViewModelEpgTest {
         assertNull(state.currentProgram)
         assertNull(state.nextProgram)
         assertEquals(EpgPanelState(), state.epgPanel)
+    }
+
+    @Test
+    fun `playChannel emits null current and next when channel has no channelCode`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        val channel = TestFixtures.SAMPLE_CHANNEL
+        every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
+        every { atvPlayer.playChannel(any()) } just runs
+        coEvery { epgProvider.fetchPrograms(any(), any()) } returns Result.success(emptyList())
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.playChannel(channel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull(state.currentProgram)
+        assertNull(state.nextProgram)
+        coVerify(exactly = 0) { epgProvider.fetchPrograms(any(), any()) }
+    }
+
+    @Test
+    fun `playChannel populates current and next programs when provider returns data`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        val channel = TestFixtures.SAMPLE_CHANNEL
+        every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
+        every { atvPlayer.playChannel(any()) } just runs
+
+        val nowProgram = Program(
+            code = "p1",
+            name = "News",
+            start = Instant.parse("2026-06-07T09:30:00Z"),
+            end = Instant.parse("2026-06-07T10:30:00Z"),
+            isLive = true,
+            isReplayable = false
+        )
+        val nextProgram = Program(
+            code = "p2",
+            name = "Weather",
+            start = Instant.parse("2026-06-07T10:30:00Z"),
+            end = Instant.parse("2026-06-07T11:00:00Z"),
+            isLive = false,
+            isReplayable = false
+        )
+        coEvery { epgProvider.fetchPrograms("CCTV-1", 0) } returns
+            Result.success(listOf(nowProgram, nextProgram))
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // Drive the EPG flow directly with an explicit channel code via the test seam.
+        viewModel.loadBannerEpgForCode(channel, channelCode = "CCTV-1")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNotNull(state.currentProgram)
+        assertEquals("News", state.currentProgram?.name)
+        assertEquals("Weather", state.nextProgram?.name)
+    }
+
+    @Test
+    fun `toggling epgEnabled off after a populated banner clears current and next`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        val channel = TestFixtures.SAMPLE_CHANNEL
+        val nowProgram = Program(
+            code = "p1",
+            name = "News",
+            start = Instant.parse("2026-06-07T09:30:00Z"),
+            end = Instant.parse("2026-06-07T10:30:00Z"),
+            isLive = true,
+            isReplayable = false
+        )
+        coEvery { epgProvider.fetchPrograms("CCTV-1", 0) } returns
+            Result.success(listOf(nowProgram))
+        every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
+        every { atvPlayer.playChannel(any()) } just runs
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.loadBannerEpgForCode(channel, channelCode = "CCTV-1")
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.currentProgram)
+
+        prefsFlow.value = UserPreferences(epgEnabled = false)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.currentProgram)
+        assertNull(viewModel.uiState.value.nextProgram)
     }
 }

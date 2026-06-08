@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.R
 import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
+import com.example.atv.domain.model.channelCode
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
@@ -14,6 +16,7 @@ import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
 import com.example.atv.ui.components.SnackBarManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.time.Clock
 import javax.inject.Inject
@@ -51,6 +55,7 @@ class PlaybackViewModel @Inject constructor(
     
     private var channelInfoHideJob: Job? = null
     private var overlayAutoHideJob: Job? = null
+    private var bannerEpgJob: Job? = null
     
     companion object {
         private const val CHANNEL_INFO_AUTO_HIDE_MS = 3000L
@@ -143,15 +148,45 @@ class PlaybackViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Banner EPG loader stub for Task 11 — Task 12 fills in the real body.
-     * Kept as a no-op here so [observeEpgFlags] compiles before the channelCode
-     * extension and the provider call wiring land.
-     */
     private fun loadBannerEpgFor(channel: Channel) {
-        // TODO(Task 12): fetch programs and compute current/next.
-        @Suppress("UNUSED_PARAMETER")
-        channel
+        val code = channel.channelCode
+        // TODO(005): when Channel.channelCode is a real nullable field on the data class,
+        // delete this comment but keep the early-return behavior identical.
+        if (!_uiState.value.showEpgSurfaces || code == null) {
+            bannerEpgJob?.cancel()
+            bannerEpgJob = null
+            _uiState.update { it.copy(currentProgram = null, nextProgram = null) }
+            return
+        }
+        loadBannerEpgForCode(channel, code)
+    }
+
+    /**
+     * Test seam: drives the banner EPG fetch with an explicit channel code, bypassing
+     * the always-null `Channel.channelCode` extension that ships in 004. Production
+     * code paths always go through `loadBannerEpgFor(channel)` instead.
+     *
+     * The provider already dispatches to IO internally (see [CtcEpgProvider.fetchPrograms]),
+     * so this wrapper does not impose an additional withContext — that would only slow
+     * down tests using StandardTestDispatcher without changing real-world behavior.
+     */
+    internal fun loadBannerEpgForCode(channel: Channel, channelCode: String) {
+        bannerEpgJob?.cancel()
+        bannerEpgJob = viewModelScope.launch {
+            val result = epgProvider.fetchPrograms(channelCode, dateOffset = 0)
+            result.fold(
+                onSuccess = { programs ->
+                    val now = clock.instant()
+                    val current = programs.find { it.airsAt(now) }
+                    val next = programs.firstOrNull { it.start.isAfter(now) }
+                    _uiState.update { it.copy(currentProgram = current, nextProgram = next) }
+                },
+                onFailure = { t ->
+                    Timber.w(t, "Banner EPG fetch failed for channel ${channel.number}")
+                    _uiState.update { it.copy(currentProgram = null, nextProgram = null) }
+                }
+            )
+        }
     }
     
     /**
@@ -159,13 +194,14 @@ class PlaybackViewModel @Inject constructor(
      */
     fun playChannel(channel: Channel) {
         Timber.d("Playing channel: ${channel.number} - ${channel.name}")
-        
+
         val index = _uiState.value.channels.indexOfFirst { it.number == channel.number }
         _uiState.update { it.copy(currentChannelIndex = index.coerceAtLeast(0)) }
-        
+
         atvPlayer.playChannel(channel)
         showChannelInfo()
-        
+        loadBannerEpgFor(channel)
+
         // Save last channel
         viewModelScope.launch {
             preferencesRepository.setLastChannelNumber(channel.number)
