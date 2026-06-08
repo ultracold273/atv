@@ -10,7 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -25,12 +27,14 @@ import androidx.tv.material3.Text
 import com.example.atv.R
 import com.example.atv.ui.components.ChannelInfoOverlay
 import com.example.atv.ui.components.ChannelListOverlay
+import com.example.atv.ui.components.EpgPanel
 import com.example.atv.ui.components.ErrorOverlay
 import com.example.atv.ui.components.NumberPadOverlay
 import com.example.atv.ui.components.SettingsMenu
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
+import java.time.Clock
 
 /**
  * Main playback screen with full-screen video and overlays.
@@ -45,6 +49,8 @@ fun PlaybackScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
     val context = LocalContext.current
+    val clock = remember { Clock.systemDefaultZone() }
+    var lastFocusedChannelRequester by remember { mutableStateOf<FocusRequester?>(null) }
     
     // Keep screen on during video playback using window flag.
     // This is more reliable than View.keepScreenOn because:
@@ -142,9 +148,12 @@ fun PlaybackScreen(
         // Channel info overlay (top)
         ChannelInfoOverlay(
             channel = uiState.currentChannel,
-            visible = uiState.showChannelInfo
+            visible = uiState.showChannelInfo,
+            currentProgram = uiState.currentProgram,
+            nextProgram = uiState.nextProgram,
+            currentTime = if (uiState.showEpgSurfaces) clock.instant() else null
         )
-        
+
         // Channel list overlay (left)
         ChannelListOverlay(
             channels = uiState.channels,
@@ -152,7 +161,20 @@ fun PlaybackScreen(
             visible = uiState.showChannelList,
             onChannelSelected = { viewModel.selectChannelFromList(it) },
             onDismiss = { viewModel.hideChannelList() },
-            onUserInteraction = { viewModel.resetChannelListAutoHide() }
+            onUserInteraction = { viewModel.resetChannelListAutoHide() },
+            epgEnabled = uiState.showEpgSurfaces,
+            onChannelFocused = { viewModel.onChannelFocused(it) },
+            onChannelFocusRequesterChanged = { lastFocusedChannelRequester = it },
+            epgPanelContent = if (uiState.showEpgSurfaces) {
+                {
+                    EpgPanel(
+                        state = uiState.epgPanel,
+                        currentTime = clock.instant(),
+                        onDateOffsetSelected = viewModel::setEpgDateOffset,
+                        onLeftFromPanel = { lastFocusedChannelRequester?.requestFocus() }
+                    )
+                }
+            } else null
         )
         
         // Number pad overlay (center)
