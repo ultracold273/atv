@@ -89,4 +89,17 @@
     
     <!-- Navigation Hints -->
     <string name="press_back_to_exit">再按一次返回键退出</string>
+
+    <!-- EPG Program Guide -->
+    <string name="epg_setting_title">显示节目指南</string>
+    <string name="epg_setting_subtitle">显示正在播放的节目和节目时间表</string>
+    <string name="epg_date_yesterday">昨天</string>
+    <string name="epg_date_today">今天</string>
+    <string name="epg_date_tomorrow">明天</string>
+    <string name="epg_now_playing_label">正在播放</string>
+    <string name="epg_up_next_label">即将播放</string>
+    <string name="epg_unavailable_for_channel">该频道暂无节目信息</string>
+    <string name="epg_no_programs">该日期暂无节目安排</string>
+    <string name="epg_load_error">无法加载节目信息</string>
+    <string name="epg_loading">正在加载节目指南&#8230;</string>
 </resources>
