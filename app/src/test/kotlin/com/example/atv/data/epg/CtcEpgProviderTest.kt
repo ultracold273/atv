@@ -1,5 +1,6 @@
 package com.example.atv.data.epg
 
+import com.example.atv.EpgFixtures
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -27,11 +28,11 @@ class CtcEpgProviderTest {
     private lateinit var http: OkHttpClient
     private lateinit var authClient: CtcAuthClient
     private val device = DeviceProfile(
-        userId = "0512208781520",
-        password = "102255",
-        stbId = "00109932000000001690878561017743",
-        ip = "192.168.20.200",
-        mac = "40:1A:58:96:92:BD",
+        userId = EpgFixtures.USER_ID,
+        password = EpgFixtures.PASSWORD,
+        stbId = EpgFixtures.STB_ID,
+        ip = EpgFixtures.IP,
+        mac = EpgFixtures.MAC,
     )
 
     @BeforeEach

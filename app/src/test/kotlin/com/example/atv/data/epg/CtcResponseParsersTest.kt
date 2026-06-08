@@ -74,12 +74,12 @@ class CtcResponseParsersTest {
     @Test
     fun `parseHiddenInputs collects name value pairs case-insensitively`() {
         val html = """
-            <INPUT TYPE="hidden" NAME="UserID" VALUE="0512208781520"/>
+            <INPUT TYPE="hidden" NAME="UserID" VALUE="1234567890123"/>
             <input type='hidden' name='STBID' value='001099320000'/>
             <input type="hidden" name="EmptyVal" value=""/>
         """.trimIndent()
         val inputs = CtcResponseParsers.parseHiddenInputs(html)
-        assertEquals("0512208781520", inputs["UserID"])
+        assertEquals("1234567890123", inputs["UserID"])
         assertEquals("001099320000", inputs["STBID"])
         assertEquals("", inputs["EmptyVal"])
     }
