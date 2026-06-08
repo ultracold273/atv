@@ -1,6 +1,7 @@
 package com.example.atv.ui.screens.playback
 
 import android.app.Application
+import com.example.atv.R
 import com.example.atv.TestFixtures
 import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
@@ -23,6 +24,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -85,6 +88,7 @@ class PlaybackViewModelEpgTest {
         every { preferencesRepository.getUserPreferences() } returns prefsFlow
         coEvery { preferencesRepository.setLastChannelNumber(any()) } just runs
         every { epgProvider.isConfigured } returns isConfiguredFlow
+        every { application.getString(R.string.epg_load_error) } returns "Unable to load programs"
     }
 
     @AfterEach
@@ -230,5 +234,55 @@ class PlaybackViewModelEpgTest {
 
         assertNull(viewModel.uiState.value.currentProgram)
         assertNull(viewModel.uiState.value.nextProgram)
+    }
+
+    @Test
+    fun `five rapid onChannelFocused calls coalesce into one provider call`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+        coEvery { epgProvider.fetchPrograms(any(), any()) } returns Result.success(emptyList())
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val ch = TestFixtures.SAMPLE_CHANNEL
+        repeat(5) { viewModel.onChannelFocusedWithCode(ch, "CCTV-1") }
+
+        advanceTimeBy(300)  // past the 250ms debounce
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { epgProvider.fetchPrograms("CCTV-1", 0) }
+    }
+
+    @Test
+    fun `sequential focus A then B cancels A and only B resolves`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+        coEvery { epgProvider.fetchPrograms("A", 0) } returns Result.success(emptyList())
+        coEvery { epgProvider.fetchPrograms("B", 0) } returns Result.success(emptyList())
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val chA = TestFixtures.SAMPLE_CHANNEL.copy(number = 1, name = "A")
+        val chB = TestFixtures.SAMPLE_CHANNEL.copy(number = 2, name = "B")
+        viewModel.onChannelFocusedWithCode(chA, "A")
+        advanceTimeBy(50)
+        viewModel.onChannelFocusedWithCode(chB, "B")
+        advanceTimeBy(300)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { epgProvider.fetchPrograms("A", 0) }
+        coVerify(exactly = 1) { epgProvider.fetchPrograms("B", 0) }
+        assertEquals(chB, viewModel.uiState.value.epgPanel.focusedChannel)
+    }
+
+    @Test
+    fun `setEpgDateOffset rejects values outside -1 to 1`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertThrows(IllegalArgumentException::class.java) { viewModel.setEpgDateOffset(2) }
+        assertThrows(IllegalArgumentException::class.java) { viewModel.setEpgDateOffset(-2) }
     }
 }

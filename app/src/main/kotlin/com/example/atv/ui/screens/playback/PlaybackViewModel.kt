@@ -17,12 +17,16 @@ import com.example.atv.player.PlayerState
 import com.example.atv.ui.components.SnackBarManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -56,18 +60,27 @@ class PlaybackViewModel @Inject constructor(
     private var channelInfoHideJob: Job? = null
     private var overlayAutoHideJob: Job? = null
     private var bannerEpgJob: Job? = null
-    
+    private var panelEpgJob: Job? = null
+
+    private val focusedChannelFlow = MutableSharedFlow<Pair<Channel, String>>(
+        replay = 1,
+        extraBufferCapacity = 8
+    )
+    private val dateOffsetFlow = MutableStateFlow(0)
+
     companion object {
         private const val CHANNEL_INFO_AUTO_HIDE_MS = 3000L
         private const val OVERLAY_AUTO_HIDE_MS = 10000L
         private const val SETTINGS_AUTO_HIDE_MS = 30000L
+        private const val PANEL_DEBOUNCE_MS = 250L
     }
-    
+
     init {
         atvPlayer.initialize()
         observeChannels()
         observePlayerState()
         observeEpgFlags()
+        observePanelEpg()
     }
     
     private fun observeChannels() {
@@ -188,7 +201,94 @@ class PlaybackViewModel @Inject constructor(
             )
         }
     }
-    
+
+    @OptIn(FlowPreview::class)
+    private fun observePanelEpg() {
+        viewModelScope.launch {
+            focusedChannelFlow
+                .combine(dateOffsetFlow) { (channel, code), offset -> Triple(channel, code, offset) }
+                .debounce(PANEL_DEBOUNCE_MS)
+                .distinctUntilChanged()
+                .collect { (channel, code, offset) -> loadPanelEpg(channel, code, offset) }
+        }
+    }
+
+    /**
+     * Production entry point — looks up the channel's `channelCode` extension.
+     * In 004 alone this is always null, so the no-op early-return path is exercised.
+     */
+    fun onChannelFocused(channel: Channel) {
+        val code = channel.channelCode ?: run {
+            _uiState.update {
+                it.copy(epgPanel = it.epgPanel.copy(focusedChannel = channel, isLoading = false))
+            }
+            return
+        }
+        onChannelFocusedWithCode(channel, code)
+    }
+
+    /**
+     * Test seam: drives the panel focus flow with an explicit channel code,
+     * bypassing the always-null `Channel.channelCode` extension that ships in 004.
+     */
+    internal fun onChannelFocusedWithCode(channel: Channel, channelCode: String) {
+        focusedChannelFlow.tryEmit(channel to channelCode)
+    }
+
+    fun setEpgDateOffset(offset: Int) {
+        require(offset in -1..1) { "EPG date offset must be in -1..1, got $offset" }
+        dateOffsetFlow.value = offset
+    }
+
+    private fun loadPanelEpg(channel: Channel, channelCode: String, dateOffset: Int) {
+        // FR-019 + FR-030: if EPG surfaces are hidden (toggle off OR provider unconfigured),
+        // do NOT issue a fetch and do NOT render an error. The panel won't be shown anyway.
+        // This guard protects against debounced focus events fired while the toggle was on
+        // but settling AFTER the toggle flipped off — without it, the user could see a
+        // brief "Unable to load programs" flash.
+        if (!_uiState.value.showEpgSurfaces) return
+
+        panelEpgJob?.cancel()
+        _uiState.update {
+            it.copy(
+                epgPanel = it.epgPanel.copy(
+                    focusedChannel = channel,
+                    dateOffset = dateOffset,
+                    isLoading = true,
+                    errorMessage = null
+                )
+            )
+        }
+        panelEpgJob = viewModelScope.launch {
+            val result = epgProvider.fetchPrograms(channelCode, dateOffset)
+            result.fold(
+                onSuccess = { programs ->
+                    _uiState.update {
+                        it.copy(
+                            epgPanel = it.epgPanel.copy(
+                                programs = programs,
+                                isLoading = false,
+                                errorMessage = null
+                            )
+                        )
+                    }
+                },
+                onFailure = { t ->
+                    Timber.w(t, "Panel EPG fetch failed for $channelCode offset=$dateOffset")
+                    _uiState.update {
+                        it.copy(
+                            epgPanel = it.epgPanel.copy(
+                                programs = emptyList(),
+                                isLoading = false,
+                                errorMessage = application.getString(R.string.epg_load_error)
+                            )
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     /**
      * Play a specific channel.
      */
@@ -278,7 +378,16 @@ class PlaybackViewModel @Inject constructor(
     // ==================== Channel List Overlay ====================
     
     fun showChannelList() {
-        _uiState.update { it.copy(showChannelList = true, showChannelInfo = false) }
+        // FR-009: always reset to Today when reopening the channel list. The user picking
+        // Yesterday/Tomorrow is a within-session affordance and MUST NOT persist.
+        dateOffsetFlow.value = 0
+        _uiState.update {
+            it.copy(
+                showChannelList = true,
+                showChannelInfo = false,
+                epgPanel = it.epgPanel.copy(dateOffset = 0)
+            )
+        }
         startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideChannelList() }
     }
     
