@@ -30,6 +30,12 @@ navigationCompose = "2.8.5"
 # Logging
 timber = "5.0.1"
 
+# Networking
+okhttp = "4.12.0"
+
+# Serialization (JSON)
+kotlinxSerialization = "1.7.3"
+
 # Testing
 junit5 = "5.11.3"
 mockk = "1.13.14"
@@ -90,6 +96,13 @@ datastore-preferences = { module = "androidx.datastore:datastore-preferences", v
 # Logging
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 
+# Networking
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
+
+# Serialization (JSON)
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
 # Testing
 junit5 = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit5" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
@@ -112,3 +125,4 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

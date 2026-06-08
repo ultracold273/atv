@@ -88,4 +88,17 @@
     
     <!-- Navigation Hints -->
     <string name="press_back_to_exit">Press back again to exit</string>
+
+    <!-- EPG Program Guide -->
+    <string name="epg_setting_title">Show program guide</string>
+    <string name="epg_setting_subtitle">Display now-playing and program schedules</string>
+    <string name="epg_date_yesterday">Yesterday</string>
+    <string name="epg_date_today">Today</string>
+    <string name="epg_date_tomorrow">Tomorrow</string>
+    <string name="epg_now_playing_label">Now</string>
+    <string name="epg_up_next_label">Next</string>
+    <string name="epg_unavailable_for_channel">EPG not available for this channel</string>
+    <string name="epg_no_programs">No programs scheduled for this date</string>
+    <string name="epg_load_error">Unable to load programs</string>
+    <string name="epg_loading">Loading guide&#8230;</string>
 </resources>

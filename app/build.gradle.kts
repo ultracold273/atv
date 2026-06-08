@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // ===========================================
@@ -158,12 +159,19 @@ dependencies {
     // Logging
     implementation(libs.timber)
 
+    // Networking
+    implementation(libs.okhttp)
+
+    // Serialization (JSON)
+    implementation(libs.kotlinx.serialization.json)
+
     // Testing
     testImplementation(libs.junit5)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.room.testing)
+    testImplementation(libs.okhttp.mockwebserver)
     
     // Android Instrumented Testing (E2E)
     androidTestImplementation(libs.androidx.test.runner)

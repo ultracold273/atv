@@ -29,8 +29,9 @@ class UserPreferencesDataStore @Inject constructor(
         val LAST_CHANNEL_NUMBER = intPreferencesKey("last_channel_number")
         val PLAYLIST_FILE_PATH = stringPreferencesKey("playlist_file_path")
         val AUTO_PLAY_ON_LAUNCH = booleanPreferencesKey("auto_play_on_launch")
+        val EPG_ENABLED = booleanPreferencesKey("epg_enabled")
     }
-    
+
     /**
      * Flow of user preferences.
      */
@@ -39,7 +40,8 @@ class UserPreferencesDataStore @Inject constructor(
             UserPreferences(
                 lastChannelNumber = preferences[Keys.LAST_CHANNEL_NUMBER] ?: 1,
                 playlistFilePath = preferences[Keys.PLAYLIST_FILE_PATH],
-                autoPlayOnLaunch = preferences[Keys.AUTO_PLAY_ON_LAUNCH] ?: true
+                autoPlayOnLaunch = preferences[Keys.AUTO_PLAY_ON_LAUNCH] ?: true,
+                epgEnabled = preferences[Keys.EPG_ENABLED] ?: false
             )
         }
     
@@ -83,6 +85,15 @@ class UserPreferencesDataStore @Inject constructor(
     suspend fun setAutoPlayOnLaunch(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[Keys.AUTO_PLAY_ON_LAUNCH] = enabled
+        }
+    }
+
+    /**
+     * Update EPG-enabled setting.
+     */
+    suspend fun setEpgEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[Keys.EPG_ENABLED] = enabled
         }
     }
     
