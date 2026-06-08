@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.R
 import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
@@ -18,9 +20,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Clock
 import javax.inject.Inject
 
 /**
@@ -32,7 +36,9 @@ class PlaybackViewModel @Inject constructor(
     private val atvPlayer: AtvPlayer,
     private val channelRepository: ChannelRepository,
     private val preferencesRepository: PreferencesRepository,
-    private val switchChannelUseCase: SwitchChannelUseCase
+    private val switchChannelUseCase: SwitchChannelUseCase,
+    private val epgProvider: EpgProvider,
+    private val clock: Clock
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(PlaybackUiState())
@@ -56,6 +62,7 @@ class PlaybackViewModel @Inject constructor(
         atvPlayer.initialize()
         observeChannels()
         observePlayerState()
+        observeEpgFlags()
     }
     
     private fun observeChannels() {
@@ -98,6 +105,53 @@ class PlaybackViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun observeEpgFlags() {
+        viewModelScope.launch {
+            var wasShowing = false
+            combine(
+                preferencesRepository.getUserPreferences().map { it.epgEnabled },
+                epgProvider.isConfigured
+            ) { epgEnabled, epgConfigured -> epgEnabled to epgConfigured }
+                .collect { (epgEnabled, epgConfigured) ->
+                    val show = epgEnabled && epgConfigured
+                    _uiState.update { state ->
+                        if (show) {
+                            state.copy(epgEnabled = epgEnabled, epgConfigured = epgConfigured)
+                        } else {
+                            // Toggle off OR provider unconfigured: clear all EPG-derived state.
+                            state.copy(
+                                epgEnabled = epgEnabled,
+                                epgConfigured = epgConfigured,
+                                currentProgram = null,
+                                nextProgram = null,
+                                epgPanel = EpgPanelState()
+                            )
+                        }
+                    }
+                    // FR-025: when EPG transitions from hidden to shown, trigger a fetch
+                    // for the currently-active channel so the user sees data immediately.
+                    // (Practically inert in 004 because epgConfigured is permanently false,
+                    // but the transition logic is exercised in PlaybackViewModelEpgTest
+                    // when the test flips both flags.)
+                    if (!wasShowing && show) {
+                        _uiState.value.currentChannel?.let { loadBannerEpgFor(it) }
+                    }
+                    wasShowing = show
+                }
+        }
+    }
+
+    /**
+     * Banner EPG loader stub for Task 11 — Task 12 fills in the real body.
+     * Kept as a no-op here so [observeEpgFlags] compiles before the channelCode
+     * extension and the provider call wiring land.
+     */
+    private fun loadBannerEpgFor(channel: Channel) {
+        // TODO(Task 12): fetch programs and compute current/next.
+        @Suppress("UNUSED_PARAMETER")
+        channel
     }
     
     /**

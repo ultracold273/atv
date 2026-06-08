@@ -2,7 +2,9 @@ package com.example.atv.ui.screens.playback
 
 import android.app.Application
 import com.example.atv.TestFixtures
+import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
@@ -20,57 +22,71 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @DisplayName("PlaybackViewModel")
 class PlaybackViewModelTest {
-    
+
     @MockK
     private lateinit var application: Application
-    
+
     @MockK
     private lateinit var atvPlayer: AtvPlayer
-    
+
     @MockK
     private lateinit var channelRepository: ChannelRepository
-    
+
     @MockK
     private lateinit var preferencesRepository: PreferencesRepository
-    
+
     @MockK
     private lateinit var switchChannelUseCase: SwitchChannelUseCase
-    
+
+    @MockK
+    private lateinit var epgProvider: EpgProvider
+
     private lateinit var viewModel: PlaybackViewModel
-    
+
     private val testDispatcher = StandardTestDispatcher()
     private val playerStateFlow = MutableStateFlow<PlayerState>(PlayerState.Idle)
-    
+    private val prefsFlow = MutableStateFlow(UserPreferences())
+    private val isConfiguredFlow = MutableStateFlow(false)
+    private val fixedClock: Clock =
+        Clock.fixed(Instant.parse("2026-06-07T10:00:00Z"), ZoneOffset.UTC)
+
     @BeforeEach
     fun setup() {
         MockKAnnotations.init(this, relaxUnitFun = true)
         Dispatchers.setMain(testDispatcher)
-        
+
         // Default mocks
         every { atvPlayer.playerState } returns playerStateFlow
         every { atvPlayer.player } returns mockk(relaxed = true)
         every { atvPlayer.initialize() } just runs
         every { channelRepository.getAllChannels() } returns flowOf(emptyList())
         every { preferencesRepository.getLastChannelNumber() } returns flowOf(1)
+        every { preferencesRepository.getUserPreferences() } returns prefsFlow
         coEvery { preferencesRepository.setLastChannelNumber(any()) } just runs
+        every { epgProvider.isConfigured } returns isConfiguredFlow
     }
-    
+
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
     }
-    
+
     private fun createViewModel(): PlaybackViewModel {
         return PlaybackViewModel(
             application = application,
             atvPlayer = atvPlayer,
             channelRepository = channelRepository,
             preferencesRepository = preferencesRepository,
-            switchChannelUseCase = switchChannelUseCase
+            switchChannelUseCase = switchChannelUseCase,
+            epgProvider = epgProvider,
+            clock = fixedClock
         )
     }
     

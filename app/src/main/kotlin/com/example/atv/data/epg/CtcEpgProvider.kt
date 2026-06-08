@@ -33,9 +33,25 @@ class CtcEpgProvider @Inject constructor(
     private val authClient: CtcAuthClient,
     private val http: OkHttpClient,
     private val device: DeviceProfile,
-    private val clock: Clock = Clock.systemUTC(),
-    private val maxCacheEntries: Int = DEFAULT_MAX_ENTRIES,
+    private val clock: Clock,
 ) : EpgProvider {
+
+    /**
+     * Test seam: construct with a custom cache size. Production uses the default.
+     * Implemented as a secondary constructor (not a default parameter) because
+     * Hilt's annotation processor does not honor Kotlin default values.
+     */
+    internal constructor(
+        authClient: CtcAuthClient,
+        http: OkHttpClient,
+        device: DeviceProfile,
+        clock: Clock,
+        maxCacheEntries: Int,
+    ) : this(authClient, http, device, clock) {
+        this.maxCacheEntriesOverride = maxCacheEntries
+    }
+
+    private var maxCacheEntriesOverride: Int? = null
 
     // TODO(005): set true after a successful login()
     private val _isConfigured = MutableStateFlow(false)
@@ -44,7 +60,11 @@ class CtcEpgProvider @Inject constructor(
     private data class CacheKey(val channelCode: String, val dateOffset: Int)
     private data class CacheEntry(val programs: List<Program>, val storedAtNanos: Long)
 
-    private val cache = LinkedLruCache<CacheKey, CacheEntry>(maxCacheEntries)
+    // Lazy so the secondary-constructor override (set AFTER `this(...)` delegation
+    // completes) is observed at first cache access, not at field-init time.
+    private val cache: LinkedLruCache<CacheKey, CacheEntry> by lazy {
+        LinkedLruCache(maxCacheEntriesOverride ?: DEFAULT_MAX_ENTRIES)
+    }
     private val keyMutexes = HashMap<CacheKey, Mutex>()
     private val mutexLock = Any()
 

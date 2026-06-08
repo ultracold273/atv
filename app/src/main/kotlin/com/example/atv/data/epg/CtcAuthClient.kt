@@ -12,6 +12,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import timber.log.Timber
 import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 
 /** Identity used in the authenticator plaintext. Mirrors python `DeviceProfile`. */
 data class DeviceProfile(
@@ -40,12 +43,16 @@ sealed class LoginResult {
  * Ports `IPTVClient.login` and its `_step_*` helpers from
  * `~/Documents/itv-reverse/iptv_client.py` lines 353-501.
  */
-class CtcAuthClient(
+@Singleton
+class CtcAuthClient @Inject constructor(
     private val baseHttp: OkHttpClient,
-    private val authServer: String,
+    @Named("authServer") private val authServer: String,
     private val device: DeviceProfile,
-    private val randomSeed: () -> Long = { System.nanoTime() },
 ) {
+
+    /** Per-instance random seed source. Production uses `System.nanoTime()`; tests inject a deterministic seed. */
+    @set:JvmName("setRandomSeedForTest")
+    internal var randomSeed: () -> Long = { System.nanoTime() }
 
     private val authBase: String = authServer.trimEnd('/')
 
