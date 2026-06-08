@@ -38,7 +38,11 @@ class PreferencesRepositoryImpl @Inject constructor(
     override suspend fun setAutoPlayOnLaunch(enabled: Boolean) {
         dataStore.setAutoPlayOnLaunch(enabled)
     }
-    
+
+    override suspend fun setEpgEnabled(enabled: Boolean) {
+        dataStore.setEpgEnabled(enabled)
+    }
+
     override suspend fun clear() {
         dataStore.clear()
     }

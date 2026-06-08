@@ -37,7 +37,12 @@ interface PreferencesRepository {
      * Update auto-play on launch setting.
      */
     suspend fun setAutoPlayOnLaunch(enabled: Boolean)
-    
+
+    /**
+     * Update EPG-enabled setting.
+     */
+    suspend fun setEpgEnabled(enabled: Boolean)
+
     /**
      * Clear all preferences.
      */
