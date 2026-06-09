@@ -72,6 +72,22 @@ class PlaybackViewModel @Inject constructor(
         private const val CHANNEL_INFO_AUTO_HIDE_MS = 3000L
         private const val OVERLAY_AUTO_HIDE_MS = 10000L
         private const val SETTINGS_AUTO_HIDE_MS = 30000L
+
+        /**
+         * Debounce window for EPG-panel focus changes (FR-026).
+         *
+         * Set to 250ms: long enough to coalesce D-pad auto-repeat (Android TV
+         * remotes typically repeat every 100–200 ms while a button is held),
+         * so scrolling past channels does NOT fire one fetch per channel; short
+         * enough that the EPG appears "immediately" after the user stops on a
+         * channel they care about — half a second feels noticeably sluggish for
+         * a banner that shows up next to a focused row.
+         *
+         * The user behavior the question raised ("if we switch within this time
+         * we won't load programs for this channel") is exactly the intent:
+         * channels you scroll PAST should not trigger network calls, only the
+         * channel you LAND ON should.
+         */
         private const val PANEL_DEBOUNCE_MS = 250L
     }
 

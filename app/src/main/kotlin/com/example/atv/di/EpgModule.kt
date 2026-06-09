@@ -17,7 +17,7 @@ import javax.inject.Singleton
  * Hilt module binding the CTC EPG provider stack.
  *
  * In spec 004, the `EpgProvider` is wired but its `isConfigured` flag is permanently
- * false, so no request is ever issued. The sentinel `DeviceProfile` and `authServer`
+ * false, so no request is ever issued. The sentinel `DeviceProfile` and `authServerUrl`
  * exist purely to make the Hilt graph compile; spec 005 will replace them with
  * user-entered credentials before flipping `isConfigured` to true.
  */
@@ -34,11 +34,30 @@ abstract class EpgModule {
 @InstallIn(SingletonComponent::class)
 object EpgNetworkModule {
 
+    /**
+     * OkHttp client for the EPG provider stack.
+     *
+     * Timeouts:
+     *   - `connectTimeout` = 10s: budget for the TCP/TLS handshake to the auth or EPG
+     *     load-balancer endpoint. A healthy server connects in well under a second; 10s
+     *     catches dead/unroutable hosts without making the user wait for the OS-default
+     *     ~minute. Tighter (e.g. 5s) would risk false negatives on slow mobile networks
+     *     during initial DNS + handshake.
+     *   - `readTimeout` = 15s: budget for any single inter-byte gap on an established
+     *     connection. The EPG endpoint typically responds in <2s, but Chinese mobile
+     *     networks can briefly stall mid-response. 15s tolerates that without making
+     *     a genuinely hung request linger for an unbounded time.
+     *
+     * Note that timeouts here are per-OkHttp-call. `CtcEpgProvider` adds its own
+     * "one silent retry on IOException" on top, so the effective worst-case wait for
+     * a user-visible failure is roughly `(connectTimeout + readTimeout) * 2 + retry_delay`
+     * — under a minute even in the worst case.
+     */
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
     /**
@@ -79,6 +98,6 @@ object EpgNetworkModule {
      */
     @Provides
     @Singleton
-    @Named("authServer")
-    fun provideAuthServer(): String = "http://itv.jsinfo.net:8298"
+    @Named("authServerUrl")
+    fun provideAuthServerUrl(): String = "http://itv.jsinfo.net:8298"
 }

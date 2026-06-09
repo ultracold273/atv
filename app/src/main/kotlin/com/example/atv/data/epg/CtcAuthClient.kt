@@ -46,15 +46,20 @@ sealed class LoginResult {
 @Singleton
 class CtcAuthClient @Inject constructor(
     private val baseHttp: OkHttpClient,
-    @Named("authServer") private val authServer: String,
+    @Named("authServerUrl") private val authServerUrl: String,
     private val device: DeviceProfile,
 ) {
 
-    /** Per-instance random seed source. Production uses `System.nanoTime()`; tests inject a deterministic seed. */
-    @set:JvmName("setRandomSeedForTest")
+    /**
+     * Random-seed source for the 8-digit `rand` field in the 3DES authenticator
+     * plaintext (see `iptv_client.py:_build_authenticator`). Production uses
+     * `System.nanoTime()` so each login produces a different authenticator;
+     * tests overwrite this property with a deterministic seed so the captured
+     * golden authenticator hex is reproducible.
+     */
     internal var randomSeed: () -> Long = { System.nanoTime() }
 
-    private val authBase: String = authServer.trimEnd('/')
+    private val authBase: String = authServerUrl.trimEnd('/')
 
     suspend fun login(): LoginResult = withContext(Dispatchers.IO) {
         try {

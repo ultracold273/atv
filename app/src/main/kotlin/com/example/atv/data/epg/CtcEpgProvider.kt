@@ -60,8 +60,16 @@ class CtcEpgProvider @Inject constructor(
     private data class CacheKey(val channelCode: String, val dateOffset: Int)
     private data class CacheEntry(val programs: List<Program>, val storedAtNanos: Long)
 
-    // Lazy so the secondary-constructor override (set AFTER `this(...)` delegation
-    // completes) is observed at first cache access, not at field-init time.
+    // Why `by lazy`: the cache size has two sources — `DEFAULT_MAX_ENTRIES` in
+    // production, and `maxCacheEntriesOverride` (set by the test-seam secondary
+    // constructor for cache-eviction tests). The override is assigned AFTER the
+    // primary constructor's `this(...)` delegation completes. If `cache` were
+    // an eager `val`, its initializer would run at primary-constructor time —
+    // before the secondary constructor's body executes — and always see
+    // `maxCacheEntriesOverride == null`, defaulting to DEFAULT_MAX_ENTRIES even
+    // in tests that asked for a smaller cap. Lazy defers the read until first
+    // cache access (well after the override is set), so the bounded-LRU test
+    // sees its requested capacity of 2.
     private val cache: LinkedLruCache<CacheKey, CacheEntry> by lazy {
         LinkedLruCache(maxCacheEntriesOverride ?: DEFAULT_MAX_ENTRIES)
     }
