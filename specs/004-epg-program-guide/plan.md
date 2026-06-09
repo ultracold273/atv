@@ -621,7 +621,7 @@ class CtcAuthenticatorTest {
     }
 
     @Test
-    fun `randomRand is always 8 digits in [10_000_000, 99_999_999]`() {
+    fun `randomRand is always 8 digits in 10000000 to 99999999`() {
         repeat(100) { i ->
             val rand = CtcAuthenticator.randomRand(java.util.Random(i.toLong()))
             assertTrue(rand in 10_000_000L..99_999_999L, "rand=$rand")
@@ -2566,6 +2566,93 @@ private fun observeEpgFlags() {
 }
 ```
 
+`observeEpgFlags` references `loadBannerEpgFor`, which Task 12 fully implements. To keep this task self-contained and runnable, add a temporary stub here that Task 12 replaces:
+
+```kotlin
+/**
+ * Banner EPG loader stub for Task 11 — Task 12 fills in the real body.
+ * Kept as a no-op here so [observeEpgFlags] compiles before the channelCode
+ * extension and the provider call wiring land.
+ */
+private fun loadBannerEpgFor(channel: Channel) {
+    // TODO(Task 12): fetch programs and compute current/next.
+    @Suppress("UNUSED_PARAMETER")
+    channel
+}
+```
+
+- [ ] **Step 4b: Pull forward the Hilt providers Phase 3 needs to build**
+
+`@HiltViewModel`'s annotation processor scans `PlaybackViewModel`'s constructor and demands a binding for every parameter — including `EpgProvider` and `Clock`. Phase 4 originally owned these, but the build fails at `hiltJavaCompileDebug` without them, so Phase 3 must pull them forward. Phase 4 reduces accordingly to settings UI + JSON provider.
+
+In `app/src/main/kotlin/com/example/atv/di/AppModule.kt`, add:
+
+```kotlin
+import java.time.Clock
+```
+
+and the provider:
+
+```kotlin
+@Provides
+@Singleton
+fun provideClock(): Clock = Clock.systemDefaultZone()
+```
+
+Create `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`:
+
+```kotlin
+package com.example.atv.di
+
+import com.example.atv.data.epg.CtcEpgProvider
+import com.example.atv.data.epg.DeviceProfile
+import com.example.atv.domain.repository.EpgProvider
+import dagger.Binds
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
+import javax.inject.Named
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class EpgModule {
+    @Binds @Singleton
+    abstract fun bindEpgProvider(impl: CtcEpgProvider): EpgProvider
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+object EpgNetworkModule {
+    @Provides @Singleton
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+
+    @Provides @Singleton
+    fun provideDeviceProfile(): DeviceProfile = DeviceProfile(
+        userId = "", password = "", stbId = "", ip = "", mac = "",
+    )
+
+    /**
+     * NOTE: This URL is NOT contacted in 004 (`isConfigured == false`).
+     * TODO(005): move behind a user-entered preference before enabling login.
+     */
+    @Provides @Singleton @Named("authServer")
+    fun provideAuthServer(): String = "http://itv.jsinfo.net:8298"
+}
+```
+
+Phase 2 created `CtcAuthClient` and `CtcEpgProvider`. To make them Hilt-injectable:
+
+In `CtcAuthClient.kt`, change the constructor to `@Inject constructor` with `@Named("authServer")` on the auth server param. Move the `randomSeed: () -> Long` default into a mutable `internal var randomSeed` property so the test seam can swap it without a secondary constructor signature mismatch.
+
+In `CtcEpgProvider.kt`, drop the `Clock` and `Int` default values from the `@Inject constructor` (Hilt does not honor Kotlin defaults). Keep a primary `@Inject constructor(authClient, http, device, clock)` and add a secondary `internal constructor(..., maxCacheEntries: Int)` for the test cache-size override; the cache backing field becomes `by lazy { LinkedLruCache(maxCacheEntriesOverride ?: DEFAULT_MAX_ENTRIES) }` so the override (set after `this(...)` delegation) is observed at first access.
+
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `./studio-gradlew test --tests "com.example.atv.ui.screens.playback.PlaybackViewModelEpgTest" --tests "com.example.atv.ui.screens.playback.PlaybackViewModelTest"`
@@ -2776,13 +2863,15 @@ private fun loadBannerEpgFor(channel: Channel) {
  * Test seam: drives the banner EPG fetch with an explicit channel code, bypassing
  * the always-null `Channel.channelCode` extension that ships in 004. Production
  * code paths always go through `loadBannerEpgFor(channel)` instead.
+ *
+ * The provider already dispatches to IO internally (see [CtcEpgProvider.fetchPrograms]),
+ * so this wrapper does not impose an additional withContext — that would only slow
+ * down tests using StandardTestDispatcher without changing real-world behavior.
  */
 internal fun loadBannerEpgForCode(channel: Channel, channelCode: String) {
     bannerEpgJob?.cancel()
     bannerEpgJob = viewModelScope.launch {
-        val result = withContext(Dispatchers.IO) {
-            epgProvider.fetchPrograms(channelCode, dateOffset = 0)
-        }
+        val result = epgProvider.fetchPrograms(channelCode, dateOffset = 0)
         result.fold(
             onSuccess = { programs ->
                 val now = clock.instant()
@@ -3008,9 +3097,7 @@ private fun loadPanelEpg(channel: Channel, channelCode: String, dateOffset: Int)
         )
     }
     panelEpgJob = viewModelScope.launch {
-        val result = withContext(Dispatchers.IO) {
-            epgProvider.fetchPrograms(channelCode, dateOffset)
-        }
+        val result = epgProvider.fetchPrograms(channelCode, dateOffset)
         result.fold(
             onSuccess = { programs ->
                 _uiState.update {
@@ -3383,7 +3470,7 @@ fun EpgPanel(
     ) {
         Text(
             text = channel.name,
-            style = AtvTypography.headlineSmall,
+            style = AtvTypography.titleLarge,
             color = AtvColors.OnSurface
         )
 
@@ -4228,14 +4315,12 @@ git commit -m "feat(004): add Show program guide toggle to Settings screen"
 
 ---
 
-### Task 19: Provide `Clock` and `Json` via Hilt
+### Task 19: Provide `Json` via Hilt
 
 **Files:**
 - Modify: `app/src/main/kotlin/com/example/atv/di/AppModule.kt`
 
-`AppModule` is the right home for project-wide singletons that are not feature-specific. Two singletons are added here:
-- `Clock` — used by `PlaybackViewModel` (Phase 3) and `CtcEpgProvider` (Phase 2).
-- `Json` — the project's standard JSON configuration. Used by `CtcResponseParsers` (Phase 2) directly via a top-level fallback; future JSON consumers (spec 005 channel import, etc.) should `@Inject Json` instead of constructing their own. Lives in `AppModule` (not `EpgModule`) precisely so it's discoverable as a project-wide convention.
+> **Phase 3 already provides `Clock`** as part of pulling the EPG Hilt graph forward (see Task 11 Step 4b). This task only adds the `Json` singleton. `AppModule` is the right home for project-wide singletons that are not feature-specific. `Json` is the project's standard JSON configuration: used by `CtcResponseParsers` (Phase 2) directly via a top-level `AppJson` fallback; future JSON consumers (spec 005 channel import, etc.) should `@Inject Json` instead of constructing their own. Lives in `AppModule` (not `EpgModule`) precisely so it's discoverable as a project-wide convention.
 
 - [ ] **Step 1: Add the imports**
 
@@ -4304,163 +4389,26 @@ git commit -m "feat(004): provide Clock and Json singletons via Hilt"
 
 ---
 
-### Task 20: Create `EpgModule` and bind `EpgProvider` to `CtcEpgProvider`
+### Task 20: ~~Create `EpgModule` and bind `EpgProvider` to `CtcEpgProvider`~~ MOVED TO PHASE 3
 
-**Files:**
-- Create: `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`
-
-**Precondition note:** `CtcAuthClient` and `CtcEpgProvider` (authored in Phase 2) MUST already declare `@Inject constructor(...)`. If Phase 2 left either as a plain constructor, fix that now before creating this module — Hilt's `@Binds` cannot bind a class that lacks an injectable constructor.
-
-- [ ] **Step 1: Create the file with both modules**
-
-Create `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`:
-
-```kotlin
-package com.example.atv.di
-
-import com.example.atv.data.epg.CtcEpgProvider
-import com.example.atv.domain.repository.EpgProvider
-import dagger.Binds
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import okhttp3.JavaNetCookieJar
-import okhttp3.OkHttpClient
-import java.net.CookieManager
-import java.net.CookiePolicy
-import java.util.concurrent.TimeUnit
-import javax.inject.Singleton
-
-/**
- * Hilt bindings for the EPG provider abstraction.
- *
- * `EpgProvider` is bound to the CTC implementation in 004. Future operator
- * implementations would replace this `@Binds` with a multibinding or qualifier.
- */
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class EpgModule {
-
-    @Binds
-    @Singleton
-    abstract fun bindEpgProvider(impl: CtcEpgProvider): EpgProvider
-}
-
-/**
- * Hilt providers for EPG networking dependencies that can't be declared with
- * `@Binds` (constructor-less third-party types).
- */
-@Module
-@InstallIn(SingletonComponent::class)
-object EpgNetworkModule {
-
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
-        val cookieManager = CookieManager().apply {
-            setCookiePolicy(CookiePolicy.ACCEPT_ALL)
-        }
-        return OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .cookieJar(JavaNetCookieJar(cookieManager))
-            .build()
-    }
-}
-```
-
-- [ ] **Step 2: Verify Hilt graph compiles**
-
-Run: `./studio-gradlew assembleDebug`
-Expected: `BUILD SUCCESSFUL`. If Hilt reports `MissingBinding` for `DeviceProfile` or `String` (`@Named("authServer")`), proceed to Task 21 — those bindings live there.
-
-If Hilt reports `MissingBinding` for `CtcAuthClient` or `CtcEpgProvider` themselves, return to Phase 2 and add `@Inject constructor(...)` to those classes.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add app/src/main/kotlin/com/example/atv/di/EpgModule.kt
-git commit -m "feat(004): bind EpgProvider to CtcEpgProvider via Hilt"
-```
+> This task was folded into **Phase 3 Task 11 Step 4b** during execution: the
+> `@HiltViewModel` annotation processor requires `EpgProvider` to be bound
+> before `PlaybackViewModel` compiles, so Phase 3 cannot stand alone without
+> the Hilt graph. `EpgModule.kt` already exists with the full `@Binds`
+> binding and the `EpgNetworkModule` `OkHttpClient` provider.
+>
+> Phase 4 has nothing to add here. Skip to Task 21 (also moved to Phase 3).
 
 ---
 
-### Task 21: Add `DeviceProfile` provider stub for 004
+### Task 21: ~~Add `DeviceProfile` provider stub for 004~~ MOVED TO PHASE 3
 
-**Files:**
-- Modify: `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`
-
-Spec 004 ships no login UI, so no real `DeviceProfile` exists. The Hilt graph still needs *something* to inject into `CtcAuthClient`. We provide a sentinel profile and a hard-coded operator endpoint; both remain unused at runtime because `CtcEpgProvider.isConfigured` is `false` in 004 and the UI never calls `fetchPrograms`.
-
-- [ ] **Step 1: Add imports for the profile binding**
-
-At the top of `app/src/main/kotlin/com/example/atv/di/EpgModule.kt`, alongside the existing imports, add:
-
-```kotlin
-import com.example.atv.data.epg.DeviceProfile
-import javax.inject.Named
-```
-
-- [ ] **Step 2: Add the `DeviceProfile` and `authServer` providers**
-
-Append the following two `@Provides` functions to the `EpgNetworkModule` object (after `provideOkHttpClient`):
-
-```kotlin
-/**
- * Sentinel device profile for 004. Spec 004 has no login UI; this empty
- * profile satisfies Hilt so the graph compiles. It is never actually
- * dispatched to the CTC endpoint because `CtcEpgProvider.isConfigured`
- * stays `false` until 005's login flow populates real credentials.
- */
-@Provides
-@Singleton
-fun provideDeviceProfile(): DeviceProfile = DeviceProfile(
-    userId = "",
-    password = "",
-    stbId = "",
-    ip = "",
-    mac = ""
-)
-
-/**
- * The China Telecom EPG operator endpoint. Hardcoded in 004 ONLY because
- * the sentinel [DeviceProfile] above means no request is ever sent
- * (`CtcEpgProvider.isConfigured` stays `false` for the entire 004 lifetime).
- *
- * SECURITY / PRIVACY GUARDRAIL — 005 MUST address this before flipping
- * `isConfigured` to true:
- *   - This URL points at a real third-party telecom operator. Shipping a
- *     public APK that auto-contacts it the moment a user enables EPG would
- *     leak the user's existence to that operator without consent.
- *   - 005's authentication UI must move this string behind a user-entered
- *     setting (DataStore `iptv_auth_server`, exposed in Settings) before
- *     any code path can actually open a connection to it.
- *   - The provider below stays as a Hilt default for 004 only because no
- *     code path reaches it; if you are working on 005 and this provider
- *     still exists, replace it with a `Flow<String>` sourced from
- *     `PreferencesRepository.getIptvAuthServer()`.
- *
- * NOTE: This URL is NOT contacted in 004 (`isConfigured == false`).
- * TODO(005): move behind a user-entered preference before enabling login.
- */
-@Provides
-@Singleton
-@Named("authServer")
-fun provideAuthServer(): String = "http://itv.jsinfo.net:8298"
-```
-
-- [ ] **Step 3: Verify Hilt graph compiles**
-
-Run: `./studio-gradlew assembleDebug`
-Expected: `BUILD SUCCESSFUL`. The Hilt graph for `PlaybackViewModel -> EpgProvider -> CtcEpgProvider -> CtcAuthClient -> (OkHttpClient, DeviceProfile, @Named("authServer") String)` now resolves.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add app/src/main/kotlin/com/example/atv/di/EpgModule.kt
-git commit -m "feat(004): provide sentinel DeviceProfile and authServer for Hilt graph"
-```
+> This task was folded into **Phase 3 Task 11 Step 4b** during execution
+> alongside Task 20: the sentinel `DeviceProfile` and `@Named("authServer")`
+> providers are already in `EpgNetworkModule` (with the same privacy
+> guardrail and `TODO(005)` marker the original Task 21 specified).
+>
+> Phase 4 has nothing to add here. Skip to Task 22.
 
 ---
 
