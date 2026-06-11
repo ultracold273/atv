@@ -21,7 +21,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,8 +48,10 @@ import com.example.atv.ui.theme.AtvTypography
 import kotlinx.coroutines.delay
 
 /**
- * Overlay showing the full channel list.
- * Slides in from the left side of the screen.
+ * Channel list overlay. When `epgEnabled && epgPanelContent != null`, the overlay
+ * renders side-by-side: a 350.dp channel column on the left and the EPG panel on
+ * the right. When EPG is disabled (the default), the layout is identical to the
+ * pre-spec behavior.
  */
 @Composable
 fun ChannelListOverlay(
@@ -56,7 +61,11 @@ fun ChannelListOverlay(
     onChannelSelected: (Channel) -> Unit,
     onDismiss: () -> Unit,
     onUserInteraction: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    epgEnabled: Boolean = false,
+    onChannelFocused: (Channel) -> Unit = {},
+    onChannelFocusRequesterChanged: (FocusRequester) -> Unit = {},
+    epgPanelContent: (@Composable () -> Unit)? = null
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -64,67 +73,135 @@ fun ChannelListOverlay(
         exit = fadeOut() + slideOutHorizontally { -it },
         modifier = modifier
     ) {
+        // Disambiguates D-pad LEFT: when focus is in the EPG panel, EpgPanel handles LEFT
+        // itself (returning focus to the channel column). When focus is in the channel
+        // column, LEFT dismisses the overlay (preserving today's behavior — FR-012).
+        var focusInEpgPanel by remember { mutableStateOf(false) }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
                         when (event.key) {
-                            Key.Back, Key.DirectionLeft -> {
+                            Key.Back -> {
                                 onDismiss()
                                 true
+                            }
+                            Key.DirectionLeft -> {
+                                if (focusInEpgPanel) {
+                                    // EpgPanel.onLeftFromPanel handles focus return.
+                                    false
+                                } else {
+                                    onDismiss()
+                                    true
+                                }
                             }
                             else -> false
                         }
                     } else false
                 }
         ) {
-            val currentChannelFocusRequester = remember { FocusRequester() }
-            val listState = rememberLazyListState(
-                initialFirstVisibleItemIndex = (currentChannelIndex - 2).coerceAtLeast(0)
-            )
-            
-            LaunchedEffect(visible) {
-                if (visible) {
-                    // Small delay to ensure list is rendered before requesting focus
-                    delay(100)
-                    currentChannelFocusRequester.requestFocus()
-                }
-            }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(350.dp)
-                    .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
-                    .background(AtvColors.Surface.copy(alpha = 0.95f))
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.channels),
-                    style = AtvTypography.headlineMedium,
-                    color = AtvColors.OnSurface,
-                    modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
-                )
-                
-                LazyColumn(
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    itemsIndexed(channels) { index, channel ->
-                        ChannelListItem(
-                            channel = channel,
-                            isCurrentlyPlaying = index == currentChannelIndex,
-                            onSelected = { onChannelSelected(channel) },
-                            onUserInteraction = onUserInteraction,
-                            modifier = if (index == currentChannelIndex) {
-                                Modifier.focusRequester(currentChannelFocusRequester)
-                            } else {
-                                Modifier
-                            }
-                        )
+            val showEpg = epgEnabled && epgPanelContent != null
+            if (showEpg) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    ChannelColumn(
+                        channels = channels,
+                        currentChannelIndex = currentChannelIndex,
+                        visible = visible,
+                        onChannelSelected = onChannelSelected,
+                        onUserInteraction = onUserInteraction,
+                        onChannelFocused = onChannelFocused,
+                        onChannelFocusRequesterChanged = onChannelFocusRequesterChanged,
+                        modifier = Modifier.width(350.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(AtvColors.Surface.copy(alpha = 0.95f))
+                            .onFocusChanged { focusInEpgPanel = it.hasFocus }
+                    ) {
+                        epgPanelContent()
                     }
                 }
+            } else {
+                ChannelColumn(
+                    channels = channels,
+                    currentChannelIndex = currentChannelIndex,
+                    visible = visible,
+                    onChannelSelected = onChannelSelected,
+                    onUserInteraction = onUserInteraction,
+                    onChannelFocused = onChannelFocused,
+                    onChannelFocusRequesterChanged = onChannelFocusRequesterChanged,
+                    modifier = Modifier.width(350.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelColumn(
+    channels: List<Channel>,
+    currentChannelIndex: Int,
+    visible: Boolean,
+    onChannelSelected: (Channel) -> Unit,
+    onUserInteraction: () -> Unit,
+    onChannelFocused: (Channel) -> Unit,
+    onChannelFocusRequesterChanged: (FocusRequester) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentChannelFocusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (currentChannelIndex - 2).coerceAtLeast(0)
+    )
+
+    LaunchedEffect(visible) {
+        if (visible) {
+            delay(100)
+            currentChannelFocusRequester.requestFocus()
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
+            .background(AtvColors.Surface.copy(alpha = 0.95f))
+            .padding(16.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.channels),
+            style = AtvTypography.headlineMedium,
+            color = AtvColors.OnSurface,
+            modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
+        )
+
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            itemsIndexed(channels) { index, channel ->
+                val itemRequester = remember(channel.number) { FocusRequester() }
+                ChannelListItem(
+                    channel = channel,
+                    isCurrentlyPlaying = index == currentChannelIndex,
+                    onSelected = { onChannelSelected(channel) },
+                    onUserInteraction = onUserInteraction,
+                    onFocused = {
+                        onChannelFocused(channel)
+                        onChannelFocusRequesterChanged(itemRequester)
+                    },
+                    modifier = Modifier
+                        .focusRequester(itemRequester)
+                        .then(
+                            if (index == currentChannelIndex) {
+                                Modifier.focusRequester(currentChannelFocusRequester)
+                            } else Modifier
+                        )
+                )
             }
         }
     }
@@ -136,6 +213,7 @@ private fun ChannelListItem(
     isCurrentlyPlaying: Boolean,
     onSelected: () -> Unit,
     onUserInteraction: () -> Unit = {},
+    onFocused: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -144,6 +222,7 @@ private fun ChannelListItem(
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
                     onUserInteraction()
+                    onFocused()
                 }
             },
         shape = ClickableSurfaceDefaults.shape(
@@ -168,8 +247,7 @@ private fun ChannelListItem(
         )
     ) {
         Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -177,9 +255,9 @@ private fun ChannelListItem(
                 style = AtvTypography.titleMedium,
                 color = if (isCurrentlyPlaying) AtvColors.Primary else AtvColors.OnSurfaceVariant
             )
-            
+
             Spacer(modifier = Modifier.width(16.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = channel.name,
@@ -196,7 +274,7 @@ private fun ChannelListItem(
                     )
                 }
             }
-            
+
             if (isCurrentlyPlaying) {
                 Text(
                     text = "▶",

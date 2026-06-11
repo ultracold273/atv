@@ -5,22 +5,34 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.R
 import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.Program
+import com.example.atv.domain.model.UserPreferences
+import com.example.atv.domain.model.channelCode
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
 import com.example.atv.ui.components.SnackBarManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.time.Clock
 import javax.inject.Inject
 
 /**
@@ -32,7 +44,9 @@ class PlaybackViewModel @Inject constructor(
     private val atvPlayer: AtvPlayer,
     private val channelRepository: ChannelRepository,
     private val preferencesRepository: PreferencesRepository,
-    private val switchChannelUseCase: SwitchChannelUseCase
+    private val switchChannelUseCase: SwitchChannelUseCase,
+    private val epgProvider: EpgProvider,
+    private val clock: Clock
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(PlaybackUiState())
@@ -45,17 +59,44 @@ class PlaybackViewModel @Inject constructor(
     
     private var channelInfoHideJob: Job? = null
     private var overlayAutoHideJob: Job? = null
-    
+    private var bannerEpgJob: Job? = null
+    private var panelEpgJob: Job? = null
+
+    private val focusedChannelFlow = MutableSharedFlow<Pair<Channel, String>>(
+        replay = 1,
+        extraBufferCapacity = 8
+    )
+    private val dateOffsetFlow = MutableStateFlow(0)
+
     companion object {
         private const val CHANNEL_INFO_AUTO_HIDE_MS = 3000L
         private const val OVERLAY_AUTO_HIDE_MS = 10000L
         private const val SETTINGS_AUTO_HIDE_MS = 30000L
+
+        /**
+         * Debounce window for EPG-panel focus changes (FR-026).
+         *
+         * Set to 250ms: long enough to coalesce D-pad auto-repeat (Android TV
+         * remotes typically repeat every 100–200 ms while a button is held),
+         * so scrolling past channels does NOT fire one fetch per channel; short
+         * enough that the EPG appears "immediately" after the user stops on a
+         * channel they care about — half a second feels noticeably sluggish for
+         * a banner that shows up next to a focused row.
+         *
+         * The user behavior the question raised ("if we switch within this time
+         * we won't load programs for this channel") is exactly the intent:
+         * channels you scroll PAST should not trigger network calls, only the
+         * channel you LAND ON should.
+         */
+        private const val PANEL_DEBOUNCE_MS = 250L
     }
-    
+
     init {
         atvPlayer.initialize()
         observeChannels()
         observePlayerState()
+        observeEpgFlags()
+        observePanelEpg()
     }
     
     private fun observeChannels() {
@@ -99,19 +140,184 @@ class PlaybackViewModel @Inject constructor(
             }
         }
     }
-    
+
+    private fun observeEpgFlags() {
+        viewModelScope.launch {
+            var wasShowing = false
+            combine(
+                preferencesRepository.getUserPreferences().map { it.epgEnabled },
+                epgProvider.isConfigured
+            ) { epgEnabled, epgConfigured -> epgEnabled to epgConfigured }
+                .collect { (epgEnabled, epgConfigured) ->
+                    val show = epgEnabled && epgConfigured
+                    _uiState.update { state ->
+                        if (show) {
+                            state.copy(epgEnabled = epgEnabled, epgConfigured = epgConfigured)
+                        } else {
+                            // Toggle off OR provider unconfigured: clear all EPG-derived state.
+                            state.copy(
+                                epgEnabled = epgEnabled,
+                                epgConfigured = epgConfigured,
+                                currentProgram = null,
+                                nextProgram = null,
+                                epgPanel = EpgPanelState()
+                            )
+                        }
+                    }
+                    // FR-025: when EPG transitions from hidden to shown, trigger a fetch
+                    // for the currently-active channel so the user sees data immediately.
+                    // (Practically inert in 004 because epgConfigured is permanently false,
+                    // but the transition logic is exercised in PlaybackViewModelEpgTest
+                    // when the test flips both flags.)
+                    if (!wasShowing && show) {
+                        _uiState.value.currentChannel?.let { loadBannerEpgFor(it) }
+                    }
+                    wasShowing = show
+                }
+        }
+    }
+
+    private fun loadBannerEpgFor(channel: Channel) {
+        val code = channel.channelCode
+        // TODO(005): when Channel.channelCode is a real nullable field on the data class,
+        // delete this comment but keep the early-return behavior identical.
+        if (!_uiState.value.showEpgSurfaces || code == null) {
+            bannerEpgJob?.cancel()
+            bannerEpgJob = null
+            _uiState.update { it.copy(currentProgram = null, nextProgram = null) }
+            return
+        }
+        loadBannerEpgForCode(channel, code)
+    }
+
+    /**
+     * Test seam: drives the banner EPG fetch with an explicit channel code, bypassing
+     * the always-null `Channel.channelCode` extension that ships in 004. Production
+     * code paths always go through `loadBannerEpgFor(channel)` instead.
+     *
+     * The provider already dispatches to IO internally (see [CtcEpgProvider.fetchPrograms]),
+     * so this wrapper does not impose an additional withContext — that would only slow
+     * down tests using StandardTestDispatcher without changing real-world behavior.
+     */
+    internal fun loadBannerEpgForCode(channel: Channel, channelCode: String) {
+        bannerEpgJob?.cancel()
+        bannerEpgJob = viewModelScope.launch {
+            val result = epgProvider.fetchPrograms(channelCode, dateOffset = 0)
+            result.fold(
+                onSuccess = { programs ->
+                    val now = clock.instant()
+                    val current = programs.find { it.airsAt(now) }
+                    val next = programs.firstOrNull { it.start.isAfter(now) }
+                    _uiState.update { it.copy(currentProgram = current, nextProgram = next) }
+                },
+                onFailure = { t ->
+                    Timber.w(t, "Banner EPG fetch failed for channel ${channel.number}")
+                    _uiState.update { it.copy(currentProgram = null, nextProgram = null) }
+                }
+            )
+        }
+    }
+
+    @OptIn(FlowPreview::class)
+    private fun observePanelEpg() {
+        viewModelScope.launch {
+            focusedChannelFlow
+                .combine(dateOffsetFlow) { (channel, code), offset -> Triple(channel, code, offset) }
+                .debounce(PANEL_DEBOUNCE_MS)
+                .distinctUntilChanged()
+                .collect { (channel, code, offset) -> loadPanelEpg(channel, code, offset) }
+        }
+    }
+
+    /**
+     * Production entry point — looks up the channel's `channelCode` extension.
+     * In 004 alone this is always null, so the no-op early-return path is exercised.
+     */
+    fun onChannelFocused(channel: Channel) {
+        val code = channel.channelCode ?: run {
+            _uiState.update {
+                it.copy(epgPanel = it.epgPanel.copy(focusedChannel = channel, isLoading = false))
+            }
+            return
+        }
+        onChannelFocusedWithCode(channel, code)
+    }
+
+    /**
+     * Test seam: drives the panel focus flow with an explicit channel code,
+     * bypassing the always-null `Channel.channelCode` extension that ships in 004.
+     */
+    internal fun onChannelFocusedWithCode(channel: Channel, channelCode: String) {
+        focusedChannelFlow.tryEmit(channel to channelCode)
+    }
+
+    fun setEpgDateOffset(offset: Int) {
+        require(offset in -1..1) { "EPG date offset must be in -1..1, got $offset" }
+        dateOffsetFlow.value = offset
+    }
+
+    private fun loadPanelEpg(channel: Channel, channelCode: String, dateOffset: Int) {
+        // FR-019 + FR-030: if EPG surfaces are hidden (toggle off OR provider unconfigured),
+        // do NOT issue a fetch and do NOT render an error. The panel won't be shown anyway.
+        // This guard protects against debounced focus events fired while the toggle was on
+        // but settling AFTER the toggle flipped off — without it, the user could see a
+        // brief "Unable to load programs" flash.
+        if (!_uiState.value.showEpgSurfaces) return
+
+        panelEpgJob?.cancel()
+        _uiState.update {
+            it.copy(
+                epgPanel = it.epgPanel.copy(
+                    focusedChannel = channel,
+                    dateOffset = dateOffset,
+                    isLoading = true,
+                    errorMessage = null
+                )
+            )
+        }
+        panelEpgJob = viewModelScope.launch {
+            val result = epgProvider.fetchPrograms(channelCode, dateOffset)
+            result.fold(
+                onSuccess = { programs ->
+                    _uiState.update {
+                        it.copy(
+                            epgPanel = it.epgPanel.copy(
+                                programs = programs,
+                                isLoading = false,
+                                errorMessage = null
+                            )
+                        )
+                    }
+                },
+                onFailure = { t ->
+                    Timber.w(t, "Panel EPG fetch failed for $channelCode offset=$dateOffset")
+                    _uiState.update {
+                        it.copy(
+                            epgPanel = it.epgPanel.copy(
+                                programs = emptyList(),
+                                isLoading = false,
+                                errorMessage = application.getString(R.string.epg_load_error)
+                            )
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     /**
      * Play a specific channel.
      */
     fun playChannel(channel: Channel) {
         Timber.d("Playing channel: ${channel.number} - ${channel.name}")
-        
+
         val index = _uiState.value.channels.indexOfFirst { it.number == channel.number }
         _uiState.update { it.copy(currentChannelIndex = index.coerceAtLeast(0)) }
-        
+
         atvPlayer.playChannel(channel)
         showChannelInfo()
-        
+        loadBannerEpgFor(channel)
+
         // Save last channel
         viewModelScope.launch {
             preferencesRepository.setLastChannelNumber(channel.number)
@@ -188,7 +394,16 @@ class PlaybackViewModel @Inject constructor(
     // ==================== Channel List Overlay ====================
     
     fun showChannelList() {
-        _uiState.update { it.copy(showChannelList = true, showChannelInfo = false) }
+        // FR-009: always reset to Today when reopening the channel list. The user picking
+        // Yesterday/Tomorrow is a within-session affordance and MUST NOT persist.
+        dateOffsetFlow.value = 0
+        _uiState.update {
+            it.copy(
+                showChannelList = true,
+                showChannelInfo = false,
+                epgPanel = it.epgPanel.copy(dateOffset = 0)
+            )
+        }
         startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideChannelList() }
     }
     
