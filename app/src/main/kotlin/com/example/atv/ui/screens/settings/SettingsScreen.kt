@@ -27,6 +27,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -130,7 +132,14 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.manage_channels_subtitle),
                     onClick = onManageChannels
                 )
-                
+
+                ToggleSettingsItem(
+                    title = stringResource(R.string.epg_setting_title),
+                    subtitle = stringResource(R.string.epg_setting_subtitle),
+                    checked = uiState.epgEnabled,
+                    onCheckedChange = { viewModel.setEpgEnabled(it) }
+                )
+
                 SettingsItem(
                     title = stringResource(R.string.clear_all_data),
                     subtitle = stringResource(R.string.clear_all_data_subtitle),
@@ -246,6 +255,66 @@ private fun SettingsItem(
                 text = subtitle,
                 style = AtvTypography.bodyMedium,
                 color = subtitleColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleSettingsItem(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = { onCheckedChange(!checked) },
+        modifier = modifier.fillMaxWidth(),
+        shape = ClickableSurfaceDefaults.shape(
+            shape = RoundedCornerShape(12.dp)
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = AtvColors.Surface,
+            focusedContainerColor = AtvColors.Primary.copy(alpha = 0.2f)
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = androidx.tv.material3.Border(
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 2.dp,
+                    color = AtvColors.Primary
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = AtvTypography.titleMedium,
+                    color = AtvColors.OnSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    style = AtvTypography.bodyMedium,
+                    color = AtvColors.OnSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = AtvColors.Primary,
+                    checkedTrackColor = AtvColors.Primary.copy(alpha = 0.5f)
+                )
             )
         }
     }
