@@ -315,22 +315,95 @@ class SettingsViewModelTest {
             // Given
             val initialChannels = listOf(TestFixtures.SAMPLE_CHANNEL)
             val updatedChannels = listOf(TestFixtures.SAMPLE_CHANNEL, TestFixtures.SAMPLE_CHANNEL_2)
-            
+
             every { channelRepository.getAllChannels() } returns flowOf(initialChannels)
-            
+
             viewModel = createViewModel()
             advanceUntilIdle()
             assertEquals(1, viewModel.uiState.value.channelCount)
-            
+
             // Simulate data change
             every { channelRepository.getAllChannels() } returns flowOf(updatedChannels)
-            
+
             // When
             viewModel.refresh()
             advanceUntilIdle()
-            
+
             // Then
             assertEquals(2, viewModel.uiState.value.channelCount)
+        }
+    }
+
+    @Nested
+    @DisplayName("S-07: EPG enabled toggle")
+    inner class EpgToggle {
+
+        @Test
+        fun `should initialize epgEnabled from preferences`() = runTest {
+            // Given
+            val preferences = UserPreferences(
+                playlistFilePath = "/test/playlist.m3u8",
+                lastChannelNumber = 1,
+                epgEnabled = true
+            )
+            every { preferencesRepository.getUserPreferences() } returns flowOf(preferences)
+
+            // When
+            viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // Then
+            assertTrue(viewModel.uiState.value.epgEnabled)
+        }
+
+        @Test
+        fun `should default epgEnabled to false when preferences flag is false`() = runTest {
+            // Given default preferences (epgEnabled = false)
+            viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // Then
+            assertFalse(viewModel.uiState.value.epgEnabled)
+        }
+
+        @Test
+        fun `should toggle epgEnabled and persist via repository`() = runTest {
+            // Given
+            coEvery { preferencesRepository.setEpgEnabled(any()) } just runs
+            viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // When
+            viewModel.setEpgEnabled(true)
+            advanceUntilIdle()
+
+            // Then
+            coVerify { preferencesRepository.setEpgEnabled(true) }
+            assertTrue(viewModel.uiState.value.epgEnabled)
+        }
+
+        @Test
+        fun `should toggle epgEnabled off and persist`() = runTest {
+            // Given epgEnabled is on at startup
+            val preferences = UserPreferences(
+                playlistFilePath = "/test/playlist.m3u8",
+                lastChannelNumber = 1,
+                epgEnabled = true
+            )
+            every { preferencesRepository.getUserPreferences() } returns flowOf(preferences)
+            coEvery { preferencesRepository.setEpgEnabled(any()) } just runs
+
+            viewModel = createViewModel()
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.epgEnabled)
+
+            // When
+            viewModel.setEpgEnabled(false)
+            advanceUntilIdle()
+
+            // Then
+            coVerify { preferencesRepository.setEpgEnabled(false) }
+            assertFalse(viewModel.uiState.value.epgEnabled)
         }
     }
 }
