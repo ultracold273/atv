@@ -23,6 +23,7 @@ data class SettingsUiState(
     val isLoading: Boolean = false,
     val showClearConfirmation: Boolean = false,
     val showAbout: Boolean = false,
+    val epgEnabled: Boolean = false,
     val message: String? = null
 )
 
@@ -59,6 +60,7 @@ class SettingsViewModel @Inject constructor(
                         channelCount = channels.size,
                         playlistUri = preferences.playlistFilePath,
                         lastPlayedChannelId = preferences.lastChannelNumber.toString(),
+                        epgEnabled = preferences.epgEnabled,
                         isLoading = false
                     )
                 }
@@ -140,7 +142,20 @@ class SettingsViewModel @Inject constructor(
     fun clearMessage() {
         _uiState.update { it.copy(message = null) }
     }
-    
+
+    /**
+     * Toggles the "Show program guide" setting and persists it.
+     *
+     * Updates UI state immediately for snappy feedback; the persisted
+     * value will be reflected on the next `loadSettings` cycle.
+     */
+    fun setEpgEnabled(enabled: Boolean) {
+        _uiState.update { it.copy(epgEnabled = enabled) }
+        viewModelScope.launch {
+            preferencesRepository.setEpgEnabled(enabled)
+        }
+    }
+
     /**
      * Refreshes settings data.
      */
