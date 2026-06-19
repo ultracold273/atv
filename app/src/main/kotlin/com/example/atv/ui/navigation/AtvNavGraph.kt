@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.atv.ui.components.AppSnackBar
 import com.example.atv.ui.screens.channelmanagement.ChannelManagementScreen
+import com.example.atv.ui.screens.iptv.IptvSettingsScreen
 import com.example.atv.ui.screens.playback.PlaybackScreen
 import com.example.atv.ui.screens.settings.SettingsScreen
 import com.example.atv.ui.screens.setup.SetupScreen
@@ -22,6 +23,7 @@ object Routes {
     const val PLAYBACK = "playback"
     const val CHANNEL_MANAGEMENT = "channel_management"
     const val SETTINGS = "settings"
+    const val IPTV_SETTINGS = "iptv_settings"
 }
 
 /**
@@ -84,6 +86,22 @@ fun AtvNavGraph(
                 },
                 onManageChannels = {
                     navController.navigate(Routes.CHANNEL_MANAGEMENT)
+                },
+                onNavigateToIptvSetup = {
+                    navController.navigate(Routes.IPTV_SETTINGS)
+                }
+            )
+        }
+
+        composable(Routes.IPTV_SETTINGS) {
+            IptvSettingsScreen(
+                onBack = {
+                    if (navController.previousBackStackEntry != null) {
+                        navController.popBackStack()
+                        true
+                    } else {
+                        false
+                    }
                 }
             )
         }

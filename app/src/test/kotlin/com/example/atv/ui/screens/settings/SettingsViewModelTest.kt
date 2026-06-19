@@ -1,8 +1,10 @@
 package com.example.atv.ui.screens.settings
 
 import com.example.atv.TestFixtures
+import com.example.atv.domain.model.IptvCredentials
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.IptvCredentialsStore
 import com.example.atv.domain.repository.PreferencesRepository
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
@@ -26,7 +28,10 @@ class SettingsViewModelTest {
     
     @MockK
     private lateinit var preferencesRepository: PreferencesRepository
-    
+
+    @MockK
+    private lateinit var iptvCredentialsStore: IptvCredentialsStore
+
     private lateinit var viewModel: SettingsViewModel
     
     private val testDispatcher = StandardTestDispatcher()
@@ -44,17 +49,19 @@ class SettingsViewModelTest {
         // Default mocks
         every { channelRepository.getAllChannels() } returns flowOf(emptyList())
         every { preferencesRepository.getUserPreferences() } returns flowOf(defaultPreferences)
+        coEvery { iptvCredentialsStore.read() } returns null
     }
-    
+
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
     }
-    
+
     private fun createViewModel(): SettingsViewModel {
         return SettingsViewModel(
             channelRepository = channelRepository,
-            preferencesRepository = preferencesRepository
+            preferencesRepository = preferencesRepository,
+            iptvCredentialsStore = iptvCredentialsStore
         )
     }
     
@@ -404,6 +411,39 @@ class SettingsViewModelTest {
             // Then
             coVerify { preferencesRepository.setEpgEnabled(false) }
             assertFalse(viewModel.uiState.value.epgEnabled)
+        }
+    }
+
+    @Nested
+    @DisplayName("S-08: IPTV setup subtitle")
+    inner class IptvSetupSubtitleBehavior {
+
+        @Test
+        fun `subtitle is NotConfigured when no credentials stored`() = runTest {
+            coEvery { iptvCredentialsStore.read() } returns null
+
+            viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.iptvSetupSubtitle is IptvSetupSubtitle.NotConfigured)
+        }
+
+        @Test
+        fun `subtitle is Imported when credentials stored and channels exist`() = runTest {
+            coEvery { iptvCredentialsStore.read() } returns IptvCredentials(
+                userId = "u", password = "p", stbId = "0".repeat(32),
+                ip = "i", mac = "m", authServerUrl = "http://x.com",
+            )
+            every { channelRepository.getAllChannels() } returns flowOf(
+                listOf(TestFixtures.SAMPLE_CHANNEL, TestFixtures.SAMPLE_CHANNEL_2)
+            )
+
+            viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val sub = viewModel.uiState.value.iptvSetupSubtitle
+            assertTrue(sub is IptvSetupSubtitle.Imported)
+            assertEquals(2, (sub as IptvSetupSubtitle.Imported).count)
         }
     }
 }
