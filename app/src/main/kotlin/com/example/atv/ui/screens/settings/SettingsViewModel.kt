@@ -1,8 +1,12 @@
 package com.example.atv.ui.screens.settings
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.atv.R
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.IptvCredentialsStore
 import com.example.atv.domain.repository.PreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +16,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/**
+ * Subtitle shown on the "IPTV setup" Settings row, reflecting credential/import state.
+ */
+sealed class IptvSetupSubtitle {
+    object NotConfigured : IptvSetupSubtitle()
+    data class Imported(val count: Int) : IptvSetupSubtitle()
+    data class SyncFailed(val reason: String) : IptvSetupSubtitle()
+
+    @Composable
+    fun resolve(): String = when (this) {
+        NotConfigured -> stringResource(R.string.iptv_setup_subtitle_not_configured)
+        is Imported -> stringResource(R.string.iptv_setup_subtitle_imported, count)
+        is SyncFailed -> stringResource(R.string.iptv_setup_subtitle_sync_failed, reason)
+    }
+}
 
 /**
  * UI State for the Settings screen.
@@ -24,6 +44,7 @@ data class SettingsUiState(
     val showClearConfirmation: Boolean = false,
     val showAbout: Boolean = false,
     val epgEnabled: Boolean = false,
+    val iptvSetupSubtitle: IptvSetupSubtitle = IptvSetupSubtitle.NotConfigured,
     val message: String? = null
 )
 
@@ -34,7 +55,8 @@ data class SettingsUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val channelRepository: ChannelRepository,
-    private val preferencesRepository: PreferencesRepository
+    private val preferencesRepository: PreferencesRepository,
+    private val iptvCredentialsStore: IptvCredentialsStore
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -54,13 +76,21 @@ class SettingsViewModel @Inject constructor(
                 
                 // Get preferences
                 val preferences = preferencesRepository.getUserPreferences().first()
-                
+
+                val creds = iptvCredentialsStore.read()
+                val iptvSubtitle = when {
+                    creds == null || !creds.isComplete -> IptvSetupSubtitle.NotConfigured
+                    channels.isEmpty() -> IptvSetupSubtitle.SyncFailed("no channels imported yet")
+                    else -> IptvSetupSubtitle.Imported(channels.size)
+                }
+
                 _uiState.update { state ->
                     state.copy(
                         channelCount = channels.size,
                         playlistUri = preferences.playlistFilePath,
                         lastPlayedChannelId = preferences.lastChannelNumber.toString(),
                         epgEnabled = preferences.epgEnabled,
+                        iptvSetupSubtitle = iptvSubtitle,
                         isLoading = false
                     )
                 }

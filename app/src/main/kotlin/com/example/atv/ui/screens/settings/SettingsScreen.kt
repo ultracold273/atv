@@ -46,6 +46,7 @@ fun SettingsScreen(
     onBack: () -> Boolean,
     onLoadNewPlaylist: () -> Unit,
     onManageChannels: () -> Unit,
+    onNavigateToIptvSetup: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -138,6 +139,12 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.epg_setting_subtitle),
                     checked = uiState.epgEnabled,
                     onCheckedChange = { viewModel.setEpgEnabled(it) }
+                )
+
+                SettingsItem(
+                    title = stringResource(R.string.iptv_setup_title),
+                    subtitle = uiState.iptvSetupSubtitle.resolve(),
+                    onClick = onNavigateToIptvSetup
                 )
 
                 SettingsItem(

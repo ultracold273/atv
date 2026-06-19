@@ -101,4 +101,35 @@
     <string name="epg_no_programs">No programs scheduled for this date</string>
     <string name="epg_load_error">Unable to load programs</string>
     <string name="epg_loading">Loading guide&#8230;</string>
+
+    <!-- IPTV Setup (spec 005) -->
+    <string name="iptv_setup_title">IPTV setup</string>
+    <string name="iptv_setup_subtitle_not_configured">Not configured</string>
+    <string name="iptv_setup_subtitle_imported">%1$d channels imported</string>
+    <string name="iptv_setup_subtitle_sync_failed">Last sync failed: %1$s</string>
+
+    <string name="iptv_field_user_id">User ID</string>
+    <string name="iptv_field_password">Password</string>
+    <string name="iptv_field_stb_id">STB ID</string>
+    <string name="iptv_field_ip">Local IP</string>
+    <string name="iptv_field_mac">Local MAC</string>
+    <string name="iptv_field_auth_server_url">Auth server URL</string>
+
+    <string name="iptv_action_test_and_import">Test connection &amp; import channels</string>
+    <string name="iptv_action_clear_credentials">Clear IPTV credentials</string>
+
+    <string name="iptv_status_idle">Ready</string>
+    <string name="iptv_status_logging_in">Logging in&#8230;</string>
+    <string name="iptv_status_fetching_channels">Fetching channels&#8230;</string>
+    <string name="iptv_status_imported">Imported %1$d channels</string>
+    <string name="iptv_status_login_failed">Login failed: %1$s</string>
+    <string name="iptv_status_fetch_failed">Fetch failed: %1$s</string>
+    <string name="iptv_status_no_channels">No channels returned by the server</string>
+
+    <string name="iptv_clear_dialog_title">Clear IPTV credentials?</string>
+    <string name="iptv_clear_dialog_message">Your stored CTC IPTV credentials will be deleted from the device. Imported channels remain in your playlist until you load a different one.</string>
+    <string name="iptv_clear_dialog_confirm">Clear</string>
+
+    <string name="iptv_validation_stb_length">STB ID must be exactly 32 characters</string>
+    <string name="iptv_validation_auth_url">Auth server URL must start with http:// or https://</string>
 </resources>
