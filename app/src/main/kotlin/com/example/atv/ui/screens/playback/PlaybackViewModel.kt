@@ -7,7 +7,6 @@ import com.example.atv.R
 import com.example.atv.domain.model.Channel
 import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
-import com.example.atv.domain.model.channelCode
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository

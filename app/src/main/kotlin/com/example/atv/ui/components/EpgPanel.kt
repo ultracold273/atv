@@ -32,7 +32,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.atv.R
 import com.example.atv.domain.model.Program
-import com.example.atv.domain.model.channelCode
 import com.example.atv.ui.screens.playback.EpgPanelState
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
