@@ -20,6 +20,7 @@ hiltNavigationCompose = "1.2.0"
 # Storage
 room = "2.8.4"
 datastore = "1.1.1"
+securityCrypto = "1.1.0-alpha06"
 
 # AndroidX
 coreKtx = "1.15.0"
@@ -92,6 +93,9 @@ room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 
 # DataStore
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+# Encrypted storage
+androidx-security-crypto = { module = "androidx.security:security-crypto-ktx", version.ref = "securityCrypto" }
 
 # Logging
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }

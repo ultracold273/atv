@@ -156,6 +156,9 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
+    // Encrypted storage (CTC IPTV credentials)
+    implementation(libs.androidx.security.crypto)
+
     // Logging
     implementation(libs.timber)
 
