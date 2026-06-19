@@ -216,4 +216,43 @@ class CtcResponseParsersTest {
         assertTrue(CtcResponseParsers.parsePrograms(backOnly).single().isReplayable)
         assertTrue(CtcResponseParsers.parsePrograms(recordOnly).single().isReplayable)
     }
+
+    @Test
+    fun `parseChannels reads jsSetConfig Channel blocks`() {
+        val html = """
+            <script>
+            jsSetConfig('Channel','ChannelID=ch1,ChannelName="A",UserChannelID=001,ChannelURL=igmp://239.0.0.1');
+            jsSetConfig('Channel','ChannelID=ch2,ChannelName="B",UserChannelID=002,ChannelURL=igmp://239.0.0.2');
+            </script>
+        """.trimIndent()
+        val out = CtcResponseParsers.parseChannels(html)
+        assertEquals(2, out.size)
+        assertEquals("ch1", out[0].channelId)
+        assertEquals("A", out[0].channelName)
+        assertEquals("001", out[0].userChannelId)
+    }
+
+    @Test
+    fun `parseChannels returns empty when no jsSetConfig blocks present`() {
+        assertTrue(CtcResponseParsers.parseChannels("<html/>").isEmpty())
+    }
+
+    @Test
+    fun `parseMixnoMapping reads display to userChannelId pairs`() {
+        val json = """{"channelMixnoMapping":"1:001,2:002,3:003"}"""
+        val m = CtcResponseParsers.parseMixnoMapping(json)
+        assertEquals("001", m["1"])
+        assertEquals("002", m["2"])
+        assertEquals("003", m["3"])
+    }
+
+    @Test
+    fun `parseMixnoMapping returns empty for missing field`() {
+        assertTrue(CtcResponseParsers.parseMixnoMapping("""{"other":"x"}""").isEmpty())
+    }
+
+    @Test
+    fun `parseMixnoMapping returns empty for non-JSON input`() {
+        assertTrue(CtcResponseParsers.parseMixnoMapping("not json").isEmpty())
+    }
 }

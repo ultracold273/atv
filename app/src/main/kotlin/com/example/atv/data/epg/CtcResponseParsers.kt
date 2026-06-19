@@ -4,6 +4,9 @@ import com.example.atv.domain.model.Program
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -107,6 +110,53 @@ object CtcResponseParsers {
                 )
             }.getOrNull()
         }
+    }
+
+    /**
+     * Parse the `jsSetConfig('Channel', '...')` blocks emitted by `frameset_builder.jsp`.
+     * Each block holds a comma-separated list of `key=value` pairs (with `value` optionally
+     * double-quoted). Mirrors the python `_parse_channels` helper at iptv_client.py:251.
+     */
+    fun parseChannels(html: String): List<CtcChannelEntry> {
+        val re = Regex("""jsSetConfig\(\s*'Channel'\s*,\s*'(.*?)'\s*\)""")
+        return re.findAll(html).mapNotNull { m ->
+            val body = m.groupValues[1]
+            val kv: MutableMap<String, String> = mutableMapOf()
+            for (piece in body.split(",")) {
+                val idx = piece.indexOf('=')
+                if (idx < 0) continue
+                val k = piece.substring(0, idx).trim()
+                val v = piece.substring(idx + 1).trim().trim('"')
+                kv[k] = v
+            }
+            if (kv.isEmpty()) return@mapNotNull null
+            CtcChannelEntry(
+                channelId = kv["ChannelID"].orEmpty(),
+                channelName = kv["ChannelName"].orEmpty(),
+                userChannelId = kv["UserChannelID"].orEmpty(),
+                channelUrl = kv["ChannelURL"].orEmpty(),
+                displayNumber = 0, // filled in by the fetcher using the mapping
+            )
+        }.toList()
+    }
+
+    /**
+     * Parse the `channelMixnoMapping` field from `get_channel_info_mapping.jsp`.
+     * The value is comma-separated `display:user_channel_id` pairs. Mirrors
+     * python `_parse_mixno_mapping` (iptv_client.py:285).
+     */
+    fun parseMixnoMapping(jsonText: String): Map<String, String> {
+        val obj = runCatching { AppJson.parseToJsonElement(jsonText) }.getOrNull() ?: return emptyMap()
+        val raw = obj.jsonObject["channelMixnoMapping"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val out = mutableMapOf<String, String>()
+        for (piece in raw.split(",")) {
+            val idx = piece.indexOf(':')
+            if (idx < 0) continue
+            val display = piece.substring(0, idx).trim().trim('"')
+            val userCh = piece.substring(idx + 1).trim().trim('"')
+            if (display.isNotEmpty()) out[display] = userCh
+        }
+        return out
     }
 }
 
