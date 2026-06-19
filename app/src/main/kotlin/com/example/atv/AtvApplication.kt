@@ -1,15 +1,20 @@
 package com.example.atv
 
 import android.app.Application
+import com.example.atv.data.epg.IptvSessionBootstrapper
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.components.SingletonComponent
 import timber.log.Timber
 
 @HiltAndroidApp
 class AtvApplication : Application() {
-    
+
     override fun onCreate() {
         super.onCreate()
-        
+
         // Configure Timber logging based on build type
         // Debug: Verbose logging with full stack traces
         // Release: Error-level logging only, no sensitive data
@@ -18,6 +23,11 @@ class AtvApplication : Application() {
         } else {
             Timber.plant(ReleaseTree())
         }
+
+        // Spec 005: auto re-login if CTC credentials are stored. No-op otherwise.
+        EntryPointAccessors.fromApplication(this, BootstrapEntryPoint::class.java)
+            .iptvSessionBootstrapper()
+            .start()
     }
     
     /**
@@ -56,4 +66,10 @@ class AtvApplication : Application() {
                 .replace(Regex("\\?[^\\s]+"), "?[PARAMS]")
         }
     }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface BootstrapEntryPoint {
+    fun iptvSessionBootstrapper(): IptvSessionBootstrapper
 }
