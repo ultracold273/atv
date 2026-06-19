@@ -8,8 +8,8 @@ import androidx.room.RoomDatabase
  */
 @Database(
     entities = [ChannelEntity::class],
-    version = 1,
-    exportSchema = false
+    version = 2,
+    exportSchema = true
 )
 abstract class AtvDatabase : RoomDatabase() {
     
