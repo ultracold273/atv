@@ -1,7 +1,9 @@
 package com.example.atv.data.epg
 
+import com.example.atv.domain.model.IptvCredentials
 import com.example.atv.domain.model.Program
 import com.example.atv.domain.repository.EpgProvider
+import com.example.atv.domain.repository.IptvCredentialsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +34,7 @@ import javax.inject.Singleton
 class CtcEpgProvider @Inject constructor(
     private val authClient: CtcAuthClient,
     private val http: OkHttpClient,
-    private val device: DeviceProfile,
+    private val credentialsStore: IptvCredentialsStore,
     private val clock: Clock,
 ) : EpgProvider {
 
@@ -44,16 +46,15 @@ class CtcEpgProvider @Inject constructor(
     internal constructor(
         authClient: CtcAuthClient,
         http: OkHttpClient,
-        device: DeviceProfile,
+        credentialsStore: IptvCredentialsStore,
         clock: Clock,
         maxCacheEntries: Int,
-    ) : this(authClient, http, device, clock) {
+    ) : this(authClient, http, credentialsStore, clock) {
         this.maxCacheEntriesOverride = maxCacheEntries
     }
 
     private var maxCacheEntriesOverride: Int? = null
 
-    // TODO(005): set true after a successful login()
     private val _isConfigured = MutableStateFlow(false)
     override val isConfigured: StateFlow<Boolean> = _isConfigured.asStateFlow()
 
@@ -79,8 +80,15 @@ class CtcEpgProvider @Inject constructor(
     @Volatile
     private var session: LoginResult.Success? = null
 
-    /** Test-only hatch to flip configured state without going through 005's trigger. */
-    internal fun testSetConfigured(value: Boolean) {
+    @Volatile
+    private var cachedUserId: String = ""
+
+    /**
+     * Flip the configured signal. Called by [com.example.atv.domain.usecase.ImportCtcChannelsUseCase]
+     * after a successful login + channel fetch. Tests can call this directly to set up
+     * provider state without going through the full import flow.
+     */
+    internal fun markConfigured(value: Boolean) {
         _isConfigured.value = value
     }
 
@@ -123,9 +131,15 @@ class CtcEpgProvider @Inject constructor(
     }
 
     private suspend fun relogin(): LoginResult.Success {
-        val r = authClient.login()
+        val creds = credentialsStore.read()
+            ?: throw IOException("login failed: no credentials")
+        if (!creds.isComplete) {
+            throw IOException("login failed: incomplete credentials")
+        }
+        val r = authClient.login(creds)
         if (r is LoginResult.Success) {
             session = r
+            cachedUserId = creds.userId
             return r
         }
         throw IOException("login failed: ${(r as LoginResult.Failure).reason}")
@@ -203,7 +217,7 @@ class CtcEpgProvider @Inject constructor(
             .addQueryParameter("versiondir", "CHANNEL_PLAYER_UTILS")
             .addQueryParameter("dateindex", dateOffset.toString())
             .addQueryParameter("stbtype", "sdr")
-            .addQueryParameter("recommpara", "userId=${device.userId}&channelId=1&num=6")
+            .addQueryParameter("recommpara", "userId=$cachedUserId&channelId=1&num=6")
             .addQueryParameter("ajax", "1")
             .build()
     }

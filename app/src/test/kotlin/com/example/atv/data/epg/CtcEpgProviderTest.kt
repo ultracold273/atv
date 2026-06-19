@@ -1,6 +1,8 @@
 package com.example.atv.data.epg
 
 import com.example.atv.EpgFixtures
+import com.example.atv.domain.model.IptvCredentials
+import com.example.atv.domain.repository.IptvCredentialsStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -27,12 +29,15 @@ class CtcEpgProviderTest {
     private lateinit var server: MockWebServer
     private lateinit var http: OkHttpClient
     private lateinit var authClient: CtcAuthClient
-    private val device = DeviceProfile(
+    private lateinit var credentialsStore: IptvCredentialsStore
+
+    private val creds = IptvCredentials(
         userId = EpgFixtures.USER_ID,
         password = EpgFixtures.PASSWORD,
         stbId = EpgFixtures.STB_ID,
         ip = EpgFixtures.IP,
         mac = EpgFixtures.MAC,
+        authServerUrl = "http://example.com:8298",
     )
 
     @BeforeEach
@@ -41,6 +46,9 @@ class CtcEpgProviderTest {
         server.start()
         http = OkHttpClient.Builder().build()
         authClient = mockk()
+        credentialsStore = mockk {
+            coEvery { read() } returns creds
+        }
     }
 
     @AfterEach
@@ -64,21 +72,21 @@ class CtcEpgProviderTest {
 
     @Test
     fun `fetchPrograms returns failure when not configured`() = runTest {
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
 
         val result = provider.fetchPrograms("ch1", 0)
         assertTrue(result.isFailure)
         assertEquals(0, server.requestCount)
-        coVerify(exactly = 0) { authClient.login() }
+        coVerify(exactly = 0) { authClient.login(any()) }
     }
 
     @Test
     fun `fetchPrograms returns programs on cache miss after configure`() = runTest {
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         val result = provider.fetchPrograms("ch1", 0)
         assertTrue(result.isSuccess)
@@ -89,9 +97,9 @@ class CtcEpgProviderTest {
     @Test
     fun `fetchPrograms passes channelcode and dateindex query params`() = runTest {
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         provider.fetchPrograms("ch42", -1)
         val req = server.takeRequest()
@@ -107,9 +115,9 @@ class CtcEpgProviderTest {
     fun `fetchPrograms cache hit within TTL serves without network`() = runTest {
         val fixed = Clock.fixed(Instant.parse("2026-06-07T08:00:00Z"), ZoneOffset.UTC)
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, fixed)
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, fixed)
+        provider.markConfigured(true)
 
         provider.fetchPrograms("ch1", 0) // miss
         val req1 = server.requestCount
@@ -128,9 +136,9 @@ class CtcEpgProviderTest {
         }
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, clock)
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, clock)
+        provider.markConfigured(true)
 
         provider.fetchPrograms("ch1", 0)
         now = t0.plusSeconds(61)
@@ -142,9 +150,9 @@ class CtcEpgProviderTest {
     fun `fetchPrograms retries once on IOException`() = runTest(StandardTestDispatcher()) {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         val deferred = async { provider.fetchPrograms("ch1", 0) }
         advanceTimeBy(2_000)
@@ -157,9 +165,9 @@ class CtcEpgProviderTest {
     fun `fetchPrograms returns failure after second IOException`() = runTest(StandardTestDispatcher()) {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         val deferred = async { provider.fetchPrograms("ch1", 0) }
         advanceTimeBy(2_000)
@@ -171,9 +179,9 @@ class CtcEpgProviderTest {
     fun `fetchPrograms retries on HTTP 5xx then succeeds`() = runTest(StandardTestDispatcher()) {
         server.enqueue(MockResponse().setResponseCode(503))
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         val deferred = async { provider.fetchPrograms("ch1", 0) }
         advanceTimeBy(2_000)
@@ -187,9 +195,9 @@ class CtcEpgProviderTest {
         // a hard failure, not silently mapped to empty success. Retry only fires on
         // IOException / 5xx — a 200 with garbage body fails on the first try.
         server.enqueue(MockResponse().setBody("garbage"))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         val deferred = async { provider.fetchPrograms("ch1", 0) }
         advanceTimeBy(2_000)
@@ -210,24 +218,24 @@ class CtcEpgProviderTest {
                 .addHeader("Content-Type", "text/html; charset=utf-8")
         )
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin() andThen successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin() andThen successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         val deferred = async { provider.fetchPrograms("ch1", 0) }
         advanceTimeBy(2_000)
         val result = deferred.await()
         assertTrue(result.isSuccess, "got $result")
         assertEquals(2, server.requestCount)
-        coVerify(exactly = 2) { authClient.login() }
+        coVerify(exactly = 2) { authClient.login(any()) }
     }
 
     @Test
     fun `concurrent fetches for same key issue one network call - single-flight`() = runTest {
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC())
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())
+        provider.markConfigured(true)
 
         val results = listOf(
             async { provider.fetchPrograms("ch1", 0) },
@@ -240,9 +248,9 @@ class CtcEpgProviderTest {
 
     @Test
     fun `bounded LRU evicts oldest when capacity exceeded`() = runTest {
-        coEvery { authClient.login() } returns successLogin()
-        val provider = CtcEpgProvider(authClient, http, device, Clock.systemUTC(), maxCacheEntries = 2)
-        provider.testSetConfigured(true)
+        coEvery { authClient.login(any()) } returns successLogin()
+        val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC(), maxCacheEntries = 2)
+        provider.markConfigured(true)
 
         // Three distinct keys, each with one network response.
         repeat(3) { server.enqueue(MockResponse().setBody(sampleProgramsJson)) }

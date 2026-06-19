@@ -1,5 +1,6 @@
 package com.example.atv.data.epg
 
+import com.example.atv.domain.model.IptvCredentials
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
@@ -13,17 +14,7 @@ import okhttp3.Request
 import timber.log.Timber
 import java.io.IOException
 import javax.inject.Inject
-import javax.inject.Named
 import javax.inject.Singleton
-
-/** Identity used in the authenticator plaintext. Mirrors python `DeviceProfile`. */
-data class DeviceProfile(
-    val userId: String,
-    val password: String,
-    val stbId: String,
-    val ip: String,
-    val mac: String,
-)
 
 sealed class LoginResult {
     data class Success(
@@ -37,17 +28,18 @@ sealed class LoginResult {
 }
 
 /**
- * 6-step CTC login client. Single-use per call to [login]; constructs a private cookie jar
- * each time so concurrent logins do not share session state.
+ * 6-step CTC login client. Stateless — credentials are passed to [login] at call time
+ * (changed from spec 004 where they were Hilt-injected). This shift is required by
+ * spec 005, which moves credentials from the Hilt graph into encrypted storage; the
+ * import use case reads them at call time and forwards them here.
  *
- * Ports `IPTVClient.login` and its `_step_*` helpers from
+ * Constructs a private cookie jar each call so concurrent logins do not share session
+ * state. Ports `IPTVClient.login` and its `_step_*` helpers from
  * `~/Documents/itv-reverse/iptv_client.py` lines 353-501.
  */
 @Singleton
 class CtcAuthClient @Inject constructor(
     private val baseHttp: OkHttpClient,
-    @Named("authServerUrl") private val authServerUrl: String,
-    private val device: DeviceProfile,
 ) {
 
     /**
@@ -59,34 +51,33 @@ class CtcAuthClient @Inject constructor(
      */
     internal var randomSeed: () -> Long = { System.nanoTime() }
 
-    private val authBase: String = authServerUrl.trimEnd('/')
-
-    suspend fun login(): LoginResult = withContext(Dispatchers.IO) {
+    suspend fun login(creds: IptvCredentials): LoginResult = withContext(Dispatchers.IO) {
+        val authBase = creds.authServerUrl.trimEnd('/')
         try {
             val jar = InMemoryCookieJar()
             val http = baseHttp.newBuilder().cookieJar(jar).build()
 
-            val encryToken = stepLoginPage(http)
+            val encryToken = stepLoginPage(http, authBase, creds.userId)
                 ?: return@withContext LoginResult.Failure("EncryToken not found in login page")
 
             val authenticator = CtcAuthenticator.buildAuthenticator(
-                userId = device.userId,
-                password = device.password,
-                stbId = device.stbId,
-                ip = device.ip,
-                mac = device.mac,
+                userId = creds.userId,
+                password = creds.password,
+                stbId = creds.stbId,
+                ip = creds.ip,
+                mac = creds.mac,
                 encryToken = encryToken,
                 randomSeed = randomSeed(),
             )
 
-            val config = stepUploadAuth(http, authenticator)
+            val config = stepUploadAuth(http, authBase, creds.userId, authenticator)
             if (config.isEmpty()) {
                 return@withContext LoginResult.Failure("uploadAuthInfo had no CTCSetConfig entries")
             }
             val userToken = config["UserToken"]
                 ?: return@withContext LoginResult.Failure("UserToken missing from auth response")
 
-            val initialUrl = stepServiceList(http, userToken)
+            val initialUrl = stepServiceList(http, authBase, userToken)
                 ?: return@withContext LoginResult.Failure("getServiceList: no document.location redirect")
 
             val sessionInfo = stepEpgSession(http, jar, initialUrl)
@@ -109,28 +100,33 @@ class CtcAuthClient @Inject constructor(
         }
     }
 
-    private fun stepLoginPage(http: OkHttpClient): String? {
+    private fun stepLoginPage(http: OkHttpClient, authBase: String, userId: String): String? {
         val url = "$authBase/auth".toHttpUrl().newBuilder()
-            .addQueryParameter("UserID", device.userId)
+            .addQueryParameter("UserID", userId)
             .addQueryParameter("Action", "Login")
             .build()
         val body = http.execGet(url)
         return CtcResponseParsers.parseEncryToken(body)
     }
 
-    private fun stepUploadAuth(http: OkHttpClient, authenticator: String): Map<String, String> {
+    private fun stepUploadAuth(
+        http: OkHttpClient,
+        authBase: String,
+        userId: String,
+        authenticator: String,
+    ): Map<String, String> {
         val form = FormBody.Builder()
-            .add("UserID", device.userId)
+            .add("UserID", userId)
             .add("Authenticator", authenticator)
             .add("AccessMethod", "dhcp")
-            .add("AccessUserName", device.userId)
+            .add("AccessUserName", userId)
             .build()
         val req = Request.Builder().url("$authBase/uploadAuthInfo").post(form).build()
         val body = http.exec(req)
         return CtcResponseParsers.parseSetConfig(body)
     }
 
-    private fun stepServiceList(http: OkHttpClient, userToken: String): String? {
+    private fun stepServiceList(http: OkHttpClient, authBase: String, userToken: String): String? {
         val req = Request.Builder()
             .url("$authBase/getServiceList")
             .header("Cookie", "UserToken=$userToken")
