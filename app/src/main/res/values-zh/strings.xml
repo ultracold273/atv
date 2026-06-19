@@ -102,4 +102,35 @@
     <string name="epg_no_programs">该日期暂无节目安排</string>
     <string name="epg_load_error">无法加载节目信息</string>
     <string name="epg_loading">正在加载节目指南&#8230;</string>
+
+    <!-- IPTV Setup (spec 005) -->
+    <string name="iptv_setup_title">IPTV 设置</string>
+    <string name="iptv_setup_subtitle_not_configured">未配置</string>
+    <string name="iptv_setup_subtitle_imported">已导入 %1$d 个频道</string>
+    <string name="iptv_setup_subtitle_sync_failed">上次同步失败：%1$s</string>
+
+    <string name="iptv_field_user_id">用户 ID</string>
+    <string name="iptv_field_password">密码</string>
+    <string name="iptv_field_stb_id">机顶盒 ID</string>
+    <string name="iptv_field_ip">本机 IP</string>
+    <string name="iptv_field_mac">本机 MAC</string>
+    <string name="iptv_field_auth_server_url">认证服务器地址</string>
+
+    <string name="iptv_action_test_and_import">测试连接并导入频道</string>
+    <string name="iptv_action_clear_credentials">清除 IPTV 凭据</string>
+
+    <string name="iptv_status_idle">就绪</string>
+    <string name="iptv_status_logging_in">正在登录&#8230;</string>
+    <string name="iptv_status_fetching_channels">正在获取频道列表&#8230;</string>
+    <string name="iptv_status_imported">已导入 %1$d 个频道</string>
+    <string name="iptv_status_login_failed">登录失败：%1$s</string>
+    <string name="iptv_status_fetch_failed">获取失败：%1$s</string>
+    <string name="iptv_status_no_channels">服务器未返回任何频道</string>
+
+    <string name="iptv_clear_dialog_title">清除 IPTV 凭据？</string>
+    <string name="iptv_clear_dialog_message">已保存的 CTC IPTV 凭据将从本机删除。已导入的频道在你加载其他播放列表前会继续保留。</string>
+    <string name="iptv_clear_dialog_confirm">清除</string>
+
+    <string name="iptv_validation_stb_length">机顶盒 ID 必须正好 32 个字符</string>
+    <string name="iptv_validation_auth_url">认证服务器地址必须以 http:// 或 https:// 开头</string>
 </resources>
