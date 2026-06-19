@@ -1,0 +1,64 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "fffde452a07e3b7fe02093865d861382",
+    "entities": [
+      {
+        "tableName": "channels",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`number` INTEGER NOT NULL, `name` TEXT NOT NULL, `stream_url` TEXT NOT NULL, `group_title` TEXT, `logo_url` TEXT, `is_manually_added` INTEGER NOT NULL, `channel_code` TEXT, PRIMARY KEY(`number`))",
+        "fields": [
+          {
+            "fieldPath": "number",
+            "columnName": "number",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "streamUrl",
+            "columnName": "stream_url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupTitle",
+            "columnName": "group_title",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "logoUrl",
+            "columnName": "logo_url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isManuallyAdded",
+            "columnName": "is_manually_added",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channelCode",
+            "columnName": "channel_code",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "number"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fffde452a07e3b7fe02093865d861382')"
+    ]
+  }
+}

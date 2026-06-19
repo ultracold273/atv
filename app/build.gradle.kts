@@ -179,6 +179,7 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test)
     androidTestImplementation(libs.hilt.android.testing)
+    androidTestImplementation(libs.room.testing)
     kspAndroidTest(libs.hilt.compiler)
     debugImplementation(libs.compose.ui.test.manifest)
 }
@@ -232,4 +233,10 @@ detekt {
     config.setFrom(files("$rootDir/config/detekt.yml"))
     buildUponDefaultConfig = true
     allRules = false
+}
+
+// KSP configuration — Room schema export so MigrationTestHelper can validate
+// schema versions in instrumented tests.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }

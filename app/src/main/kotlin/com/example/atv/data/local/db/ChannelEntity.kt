@@ -12,21 +12,24 @@ import com.example.atv.domain.model.Channel
 data class ChannelEntity(
     @PrimaryKey
     val number: Int,
-    
+
     @ColumnInfo(name = "name")
     val name: String,
-    
+
     @ColumnInfo(name = "stream_url")
     val streamUrl: String,
-    
+
     @ColumnInfo(name = "group_title")
     val groupTitle: String?,
-    
+
     @ColumnInfo(name = "logo_url")
     val logoUrl: String?,
-    
+
     @ColumnInfo(name = "is_manually_added")
-    val isManuallyAdded: Boolean = false
+    val isManuallyAdded: Boolean = false,
+
+    @ColumnInfo(name = "channel_code")
+    val channelCode: String? = null
 )
 
 /**
@@ -37,7 +40,8 @@ fun ChannelEntity.toDomain(): Channel = Channel(
     name = name,
     streamUrl = streamUrl,
     groupTitle = groupTitle,
-    logoUrl = logoUrl
+    logoUrl = logoUrl,
+    channelCode = channelCode
 )
 
 /**
@@ -49,5 +53,6 @@ fun Channel.toEntity(isManuallyAdded: Boolean = false): ChannelEntity = ChannelE
     streamUrl = streamUrl,
     groupTitle = groupTitle,
     logoUrl = logoUrl,
-    isManuallyAdded = isManuallyAdded
+    isManuallyAdded = isManuallyAdded,
+    channelCode = channelCode
 )

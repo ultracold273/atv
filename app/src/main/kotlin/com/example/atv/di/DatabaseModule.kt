@@ -2,6 +2,7 @@ package com.example.atv.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.atv.data.local.db.ALL_MIGRATIONS
 import com.example.atv.data.local.db.AtvDatabase
 import com.example.atv.data.local.db.ChannelDao
 import dagger.Module
@@ -27,7 +28,9 @@ object DatabaseModule {
             context,
             AtvDatabase::class.java,
             AtvDatabase.DATABASE_NAME
-        ).build()
+        )
+            .addMigrations(*ALL_MIGRATIONS)
+            .build()
     }
     
     @Provides
