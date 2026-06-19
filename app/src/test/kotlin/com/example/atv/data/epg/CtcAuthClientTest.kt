@@ -1,6 +1,7 @@
 package com.example.atv.data.epg
 
 import com.example.atv.EpgFixtures
+import com.example.atv.domain.model.IptvCredentials
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -16,28 +17,29 @@ class CtcAuthClientTest {
 
     private lateinit var server: MockWebServer
     private lateinit var http: OkHttpClient
-    private lateinit var device: DeviceProfile
+    private lateinit var client: CtcAuthClient
+
+    private fun creds(): IptvCredentials = IptvCredentials(
+        userId = EpgFixtures.USER_ID,
+        password = EpgFixtures.PASSWORD,
+        stbId = EpgFixtures.STB_ID,
+        ip = EpgFixtures.IP,
+        mac = EpgFixtures.MAC,
+        authServerUrl = server.url("/").toString().removeSuffix("/"),
+    )
 
     @BeforeEach
     fun setUp() {
         server = MockWebServer()
         server.start()
         http = OkHttpClient.Builder().build()
-        device = DeviceProfile(
-            userId = EpgFixtures.USER_ID,
-            password = EpgFixtures.PASSWORD,
-            stbId = EpgFixtures.STB_ID,
-            ip = EpgFixtures.IP,
-            mac = EpgFixtures.MAC,
-        )
+        client = CtcAuthClient(http)
     }
 
     @AfterEach
     fun tearDown() {
         server.shutdown()
     }
-
-    private fun authBase(): String = server.url("/").toString().removeSuffix("/")
 
     /** Enqueue a complete happy-path login transcript matching python's 6 steps. */
     private fun enqueueHappyPath() {
@@ -82,8 +84,7 @@ class CtcAuthClientTest {
     @Test
     fun `login happy path returns Success with epgLbBase, jsessionId, config, userToken`() = runTest {
         enqueueHappyPath()
-        val client = CtcAuthClient(http, authBase(), device)
-        val result = client.login()
+        val result = client.login(creds())
         assertTrue(result is LoginResult.Success, "got $result")
         result as LoginResult.Success
         assertEquals("tok-XYZ", result.userToken)
@@ -98,7 +99,7 @@ class CtcAuthClientTest {
     @Test
     fun `login step 1 sends UserID and Action=Login`() = runTest {
         enqueueHappyPath()
-        CtcAuthClient(http, authBase(), device).login()
+        client.login(creds())
         val req = server.takeRequest()
         assertEquals("GET", req.method)
         assertTrue(req.path!!.contains("UserID=${EpgFixtures.USER_ID}"))
@@ -108,7 +109,7 @@ class CtcAuthClientTest {
     @Test
     fun `login step 2 posts Authenticator UserID AccessMethod AccessUserName`() = runTest {
         enqueueHappyPath()
-        CtcAuthClient(http, authBase(), device).login()
+        client.login(creds())
         server.takeRequest() // step 1
         val req = server.takeRequest()
         assertEquals("POST", req.method)
@@ -123,7 +124,7 @@ class CtcAuthClientTest {
     @Test
     fun `login step 4 sends UserToken cookie`() = runTest {
         enqueueHappyPath()
-        CtcAuthClient(http, authBase(), device).login()
+        client.login(creds())
         server.takeRequest() // step 1
         server.takeRequest() // step 2
         val req = server.takeRequest()
@@ -134,7 +135,7 @@ class CtcAuthClientTest {
     @Test
     fun `login step 6 posts hidden inputs to funcportalauth jsp with JSESSIONID`() = runTest {
         enqueueHappyPath()
-        CtcAuthClient(http, authBase(), device).login()
+        client.login(creds())
         repeat(5) { server.takeRequest() }
         val req = server.takeRequest()
         assertEquals("POST", req.method)
@@ -148,7 +149,7 @@ class CtcAuthClientTest {
     @Test
     fun `login fails with NoEncryToken when login page is malformed`() = runTest {
         server.enqueue(MockResponse().setBody("<html>broken</html>"))
-        val result = CtcAuthClient(http, authBase(), device).login()
+        val result = client.login(creds())
         assertTrue(result is LoginResult.Failure)
         assertTrue((result as LoginResult.Failure).reason.contains("EncryToken"))
     }
@@ -161,7 +162,7 @@ class CtcAuthClientTest {
         server.enqueue(
             MockResponse().setBody("Authentication.CTCSetConfig('Other','1');")
         )
-        val result = CtcAuthClient(http, authBase(), device).login()
+        val result = client.login(creds())
         assertTrue(result is LoginResult.Failure)
         assertTrue((result as LoginResult.Failure).reason.contains("UserToken"))
     }
@@ -178,15 +179,16 @@ class CtcAuthClientTest {
         server.enqueue(MockResponse().setBody("document.location='$nodeUrl';"))
         // No Set-Cookie header here.
         server.enqueue(MockResponse().setBody("<html/>"))
-        val result = CtcAuthClient(http, authBase(), device).login()
+        val result = client.login(creds())
         assertTrue(result is LoginResult.Failure)
         assertTrue((result as LoginResult.Failure).reason.contains("JSESSIONID"))
     }
 
     @Test
     fun `login returns Failure rather than throwing on network error`() = runTest {
-        server.shutdown() // force connection refusal
-        val result = CtcAuthClient(http, authBase(), device).login()
+        val c = creds()        // capture URL BEFORE shutdown
+        server.shutdown()      // force connection refusal
+        val result = client.login(c)
         assertTrue(result is LoginResult.Failure, "got $result")
         assertNotNull((result as LoginResult.Failure).reason)
     }

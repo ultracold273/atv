@@ -26,8 +26,16 @@ import javax.inject.Singleton
 @Singleton
 class IptvCredentialsStoreImpl @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val prefsName: String = DEFAULT_PREFS_NAME,
 ) : IptvCredentialsStore {
+
+    private var prefsName: String = DEFAULT_PREFS_NAME
+
+    // Test seam: override the prefs file name so concurrent test runs don't collide.
+    // Not @Inject — Hilt does not honor Kotlin default values, and a bare String
+    // parameter would add a spurious unsatisfiable String binding to the graph.
+    internal constructor(context: Context, prefsName: String) : this(context) {
+        this.prefsName = prefsName
+    }
 
     private val prefs: SharedPreferences by lazy { buildEncryptedPrefs() }
 
