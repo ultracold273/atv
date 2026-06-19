@@ -5,9 +5,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.R
+import com.example.atv.data.epg.IptvSessionBootstrapper
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.IptvCredentialsStore
 import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.domain.usecase.ImportResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,14 +58,32 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val channelRepository: ChannelRepository,
     private val preferencesRepository: PreferencesRepository,
-    private val iptvCredentialsStore: IptvCredentialsStore
+    private val iptvCredentialsStore: IptvCredentialsStore,
+    private val iptvBootstrapper: IptvSessionBootstrapper
 ) : ViewModel() {
-    
+
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-    
+
     init {
         loadSettings()
+        observeBootstrapResult()
+    }
+
+    private fun observeBootstrapResult() {
+        viewModelScope.launch {
+            iptvBootstrapper.lastResult.collect { result ->
+                val current = _uiState.value.iptvSetupSubtitle
+                val updated = when (result) {
+                    is ImportResult.LoginFailure -> IptvSetupSubtitle.SyncFailed(result.reason)
+                    is ImportResult.FetchFailure -> IptvSetupSubtitle.SyncFailed(result.reason)
+                    ImportResult.NoChannelsReturned -> IptvSetupSubtitle.SyncFailed("no channels")
+                    is ImportResult.Success -> IptvSetupSubtitle.Imported(result.importedCount)
+                    null -> current
+                }
+                _uiState.update { it.copy(iptvSetupSubtitle = updated) }
+            }
+        }
     }
     
     private fun loadSettings() {
