@@ -51,7 +51,8 @@ fun PlaybackScreen(
     val context = LocalContext.current
     val clock = remember { Clock.systemDefaultZone() }
     var lastFocusedChannelRequester by remember { mutableStateOf<FocusRequester?>(null) }
-    
+    var todayTabRequester by remember { mutableStateOf<FocusRequester?>(null) }
+
     // Keep screen on during video playback using window flag.
     // This is more reliable than View.keepScreenOn because:
     // 1. Window flags work regardless of view focus or recomposition timing
@@ -176,13 +177,16 @@ fun PlaybackScreen(
             epgEnabled = uiState.showEpgSurfaces,
             onChannelFocused = { viewModel.onChannelFocused(it) },
             onChannelFocusRequesterChanged = { lastFocusedChannelRequester = it },
+            todayTabRequester = todayTabRequester,
             epgPanelContent = if (uiState.showEpgSurfaces) {
                 {
                     EpgPanel(
                         state = uiState.epgPanel,
                         currentTime = clock.instant(),
                         onDateOffsetSelected = viewModel::setEpgDateOffset,
-                        onLeftFromPanel = { lastFocusedChannelRequester?.requestFocus() }
+                        onLeftFromPanel = { lastFocusedChannelRequester?.requestFocus() },
+                        onTodayTabRequesterChanged = { todayTabRequester = it },
+                        onUserInteraction = { viewModel.resetChannelListAutoHide() }
                     )
                 }
             } else null

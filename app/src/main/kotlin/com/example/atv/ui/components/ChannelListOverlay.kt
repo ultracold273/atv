@@ -65,6 +65,7 @@ fun ChannelListOverlay(
     epgEnabled: Boolean = false,
     onChannelFocused: (Channel) -> Unit = {},
     onChannelFocusRequesterChanged: (FocusRequester) -> Unit = {},
+    todayTabRequester: FocusRequester? = null,
     epgPanelContent: (@Composable () -> Unit)? = null
 ) {
     AnimatedVisibility(
@@ -113,6 +114,7 @@ fun ChannelListOverlay(
                         onUserInteraction = onUserInteraction,
                         onChannelFocused = onChannelFocused,
                         onChannelFocusRequesterChanged = onChannelFocusRequesterChanged,
+                        todayTabRequester = todayTabRequester,
                         modifier = Modifier.width(350.dp)
                     )
                     Box(
@@ -151,6 +153,7 @@ private fun ChannelColumn(
     onUserInteraction: () -> Unit,
     onChannelFocused: (Channel) -> Unit,
     onChannelFocusRequesterChanged: (FocusRequester) -> Unit,
+    todayTabRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
     val currentChannelFocusRequester = remember { FocusRequester() }
@@ -199,6 +202,22 @@ private fun ChannelColumn(
                         .then(
                             if (index == currentChannelIndex) {
                                 Modifier.focusRequester(currentChannelFocusRequester)
+                            } else Modifier
+                        )
+                        .then(
+                            // RIGHT moves into the EPG panel, landing on the "today" tab
+                            // (deterministic, not spatial). Only when the panel is shown.
+                            if (todayTabRequester != null) {
+                                Modifier.onKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown &&
+                                        event.key == Key.DirectionRight
+                                    ) {
+                                        // runCatching: never crash on a focus race if the
+                                        // tab node isn't attached yet.
+                                        runCatching { todayTabRequester.requestFocus() }
+                                        true
+                                    } else false
+                                }
                             } else Modifier
                         )
                 )

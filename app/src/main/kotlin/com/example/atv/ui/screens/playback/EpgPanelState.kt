@@ -24,4 +24,12 @@ data class EpgPanelState(
     /** True when the panel resolved to "nothing to show" — drives empty-state rendering. */
     val isEmpty: Boolean
         get() = !isLoading && errorMessage == null && programs.isEmpty()
+
+    /**
+     * True when the scrollable program list is actually rendered (channel has an EPG
+     * mapping, not loading, no error, non-empty). Only then is the program-list focus
+     * target attached — guards focus requests that would otherwise crash.
+     */
+    val programListVisible: Boolean
+        get() = focusedChannel?.channelCode != null && !isLoading && errorMessage == null && !isEmpty
 }
