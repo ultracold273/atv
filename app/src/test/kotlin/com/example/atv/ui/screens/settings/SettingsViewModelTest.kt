@@ -1,15 +1,18 @@
 package com.example.atv.ui.screens.settings
 
 import com.example.atv.TestFixtures
+import com.example.atv.data.epg.IptvSessionBootstrapper
 import com.example.atv.domain.model.IptvCredentials
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.IptvCredentialsStore
 import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.domain.usecase.ImportResult
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import org.junit.jupiter.api.AfterEach
@@ -32,6 +35,9 @@ class SettingsViewModelTest {
     @MockK
     private lateinit var iptvCredentialsStore: IptvCredentialsStore
 
+    @MockK
+    private lateinit var iptvBootstrapper: IptvSessionBootstrapper
+
     private lateinit var viewModel: SettingsViewModel
     
     private val testDispatcher = StandardTestDispatcher()
@@ -50,6 +56,7 @@ class SettingsViewModelTest {
         every { channelRepository.getAllChannels() } returns flowOf(emptyList())
         every { preferencesRepository.getUserPreferences() } returns flowOf(defaultPreferences)
         coEvery { iptvCredentialsStore.read() } returns null
+        every { iptvBootstrapper.lastResult } returns MutableStateFlow(null)
     }
 
     @AfterEach
@@ -61,7 +68,8 @@ class SettingsViewModelTest {
         return SettingsViewModel(
             channelRepository = channelRepository,
             preferencesRepository = preferencesRepository,
-            iptvCredentialsStore = iptvCredentialsStore
+            iptvCredentialsStore = iptvCredentialsStore,
+            iptvBootstrapper = iptvBootstrapper
         )
     }
     
@@ -444,6 +452,26 @@ class SettingsViewModelTest {
             val sub = viewModel.uiState.value.iptvSetupSubtitle
             assertTrue(sub is IptvSetupSubtitle.Imported)
             assertEquals(2, (sub as IptvSetupSubtitle.Imported).count)
+        }
+
+        @Test
+        fun `subtitle becomes SyncFailed when bootstrapper publishes LoginFailure`() = runTest {
+            val resultFlow = MutableStateFlow<ImportResult?>(null)
+            every { iptvBootstrapper.lastResult } returns resultFlow
+            coEvery { iptvCredentialsStore.read() } returns IptvCredentials(
+                userId = "u", password = "p", stbId = "0".repeat(32),
+                ip = "i", mac = "m", authServerUrl = "http://x.com",
+            )
+
+            viewModel = createViewModel()
+            advanceUntilIdle()
+
+            resultFlow.value = ImportResult.LoginFailure("session expired")
+            advanceUntilIdle()
+
+            val sub = viewModel.uiState.value.iptvSetupSubtitle
+            assertTrue(sub is IptvSetupSubtitle.SyncFailed)
+            assertEquals("session expired", (sub as IptvSetupSubtitle.SyncFailed).reason)
         }
     }
 }
