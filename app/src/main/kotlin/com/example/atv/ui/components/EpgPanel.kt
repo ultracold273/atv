@@ -140,13 +140,24 @@ fun EpgPanel(
         }
     }
 
-    // After a day switch, once the new programs are in and the list is shown, scroll to
-    // and focus the matching row, then clear the pending request. Gated on the pending
-    // flag so ordinary channel re-renders never steal focus into the list.
-    LaunchedEffect(state.programs, state.dateOffset, programsVisible) {
-        if (pendingFocusTimeOfDay != null && programsVisible) {
-            focusEntryRow()
-            pendingFocusTimeOfDay = null
+    // After a day switch, focus the matching program row once the new day's programs
+    // are in. If that day has nothing to focus (still loading is skipped; empty, error,
+    // or no EPG mapping), fall back to the destination day's tab so focus is never lost
+    // in the blank panel — the user can keep navigating tabs from there. Gated on the
+    // pending flag so ordinary channel re-renders never steal focus into the panel.
+    LaunchedEffect(state.programs, state.dateOffset, programsVisible, state.isLoading) {
+        if (pendingFocusTimeOfDay == null) return@LaunchedEffect
+        when {
+            programsVisible -> {
+                focusEntryRow()
+                pendingFocusTimeOfDay = null
+            }
+            // Only fall back to the tab once the fetch has settled — during loading the
+            // list may still appear, so don't yank focus to the tab prematurely.
+            !state.isLoading -> {
+                runCatching { tabRequesters[state.dateOffset - MIN_DATE_OFFSET].requestFocus() }
+                pendingFocusTimeOfDay = null
+            }
         }
     }
 
