@@ -43,6 +43,10 @@ class PreferencesRepositoryImpl @Inject constructor(
         dataStore.setEpgEnabled(enabled)
     }
 
+    override suspend fun setUdpxyProxy(value: String?) {
+        dataStore.setUdpxyProxy(value)
+    }
+
     override suspend fun clear() {
         dataStore.clear()
     }

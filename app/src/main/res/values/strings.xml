@@ -132,4 +132,10 @@
 
     <string name="iptv_validation_stb_length">STB ID must be exactly 32 characters</string>
     <string name="iptv_validation_auth_url">Auth server URL must start with http:// or https://</string>
+
+    <!-- udpxy proxy (spec 005) -->
+    <string name="udpxy_proxy_title">udpxy proxy</string>
+    <string name="udpxy_proxy_subtitle">Relay igmp:// channels over HTTP (host:port, e.g. openwrt:4022)</string>
+    <string name="udpxy_proxy_label">udpxy proxy (host:port)</string>
+    <string name="udpxy_proxy_hint">openwrt:4022</string>
 </resources>

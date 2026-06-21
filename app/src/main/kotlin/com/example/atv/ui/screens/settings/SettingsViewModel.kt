@@ -47,6 +47,7 @@ data class SettingsUiState(
     val showAbout: Boolean = false,
     val epgEnabled: Boolean = false,
     val iptvSetupSubtitle: IptvSetupSubtitle = IptvSetupSubtitle.NotConfigured,
+    val udpxyProxy: String = "",
     val message: String? = null
 )
 
@@ -111,6 +112,7 @@ class SettingsViewModel @Inject constructor(
                         lastPlayedChannelId = preferences.lastChannelNumber.toString(),
                         epgEnabled = preferences.epgEnabled,
                         iptvSetupSubtitle = iptvSubtitle,
+                        udpxyProxy = preferences.udpxyProxy.orEmpty(),
                         isLoading = false
                     )
                 }
@@ -203,6 +205,17 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(epgEnabled = enabled) }
         viewModelScope.launch {
             preferencesRepository.setEpgEnabled(enabled)
+        }
+    }
+
+    /**
+     * Updates and persists the udpxy proxy address. UI updates immediately;
+     * the value takes effect on the next channel play.
+     */
+    fun setUdpxyProxy(value: String) {
+        _uiState.update { it.copy(udpxyProxy = value) }
+        viewModelScope.launch {
+            preferencesRepository.setUdpxyProxy(value)
         }
     }
 

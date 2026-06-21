@@ -133,4 +133,10 @@
 
     <string name="iptv_validation_stb_length">机顶盒 ID 必须正好 32 个字符</string>
     <string name="iptv_validation_auth_url">认证服务器地址必须以 http:// 或 https:// 开头</string>
+
+    <!-- udpxy proxy (spec 005) -->
+    <string name="udpxy_proxy_title">udpxy 代理</string>
+    <string name="udpxy_proxy_subtitle">通过 HTTP 转播 igmp:// 频道（主机:端口，例如 openwrt:4022）</string>
+    <string name="udpxy_proxy_label">udpxy 代理（主机:端口）</string>
+    <string name="udpxy_proxy_hint">openwrt:4022</string>
 </resources>
