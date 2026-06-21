@@ -40,6 +40,7 @@ object CtcResponseParsers {
     )
 
     private val TIMESTAMP_COMPACT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+    private val TIMESTAMP_DOTTED: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss")
 
     // Local DTOs that match the wire format. Kept private — the rest of the app
     // sees only the domain-layer [Program].
@@ -77,12 +78,19 @@ object CtcResponseParsers {
      * The Python reference stores timestamps as raw strings (no parsing). The Kotlin port
      * normalizes at the provider boundary using these rules (per spec.md "Time zone"):
      *   1. `yyyyMMddHHmmss` (e.g. "20260607080000") interpreted in the device's local zone.
-     *   2. ISO-8601 (e.g. "2026-06-07T08:00:00Z") via [Instant.parse].
-     *   3. Otherwise throw [IllegalArgumentException].
+     *   2. `yyyy.MM.dd HH:mm:ss` (e.g. "2026.03.14 00:56:00") — the real CTC prevue_list.jsp
+     *      format — interpreted in the device's local zone.
+     *   3. ISO-8601 (e.g. "2026-06-07T08:00:00Z") via [Instant.parse].
+     *   4. Otherwise throw [IllegalArgumentException].
      */
     fun parseTimestamp(s: String): Instant {
         runCatching {
             return LocalDateTime.parse(s, TIMESTAMP_COMPACT)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+        }
+        runCatching {
+            return LocalDateTime.parse(s, TIMESTAMP_DOTTED)
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
         }

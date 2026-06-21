@@ -102,6 +102,16 @@ class CtcResponseParsersTest {
     }
 
     @Test
+    fun `parseTimestamp accepts dotted yyyy_MM_dd HH_mm_ss in device local zone`() {
+        // Real CTC prevue_list.jsp format, e.g. "2026.03.14 00:56:00".
+        val ts = CtcResponseParsers.parseTimestamp("2026.03.14 00:56:00")
+        val expected = LocalDateTime.of(2026, 3, 14, 0, 56, 0)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+        assertEquals(expected, ts)
+    }
+
+    @Test
     fun `parseTimestamp falls back to ISO-8601`() {
         val ts = CtcResponseParsers.parseTimestamp("2026-06-07T08:00:00Z")
         assertEquals(Instant.parse("2026-06-07T08:00:00Z"), ts)
@@ -135,6 +145,33 @@ class CtcResponseParsersTest {
         assertEquals("p2", programs[1].code)
         assertTrue(!programs[1].isLive)
         assertTrue(programs[1].isReplayable)
+    }
+
+    @Test
+    fun `parsePrograms parses real CTC response with dotted timestamps and extra fields`() {
+        // Mirrors the real prevue_list.jsp response: dotted "yyyy.MM.dd HH:mm:ss" times
+        // and many extra fields (isFuture, names, contents, ...) the parser must ignore.
+        // Regression guard for the bug where every program was dropped because the dotted
+        // timestamp format was unrecognized, yielding an empty (silent) program list.
+        val json = """
+            {"channelPrevue":[
+              {"prevuecode":"11SCHEcp000011260314000244159550","isRecord":"1",
+               "endtime":"2026.03.14 00:56:00","begintime":"2026.03.14 00:00:00",
+               "isFuture":"0","isBack":"1","noCopyright":"","names":"A|B|C",
+               "isLive":"0","prevuename":"中华考工记(8)","chargetypes":"|||||",
+               "contents":"x@JSBC","replaceUrl":"","replaceFlag":""},
+              {"prevuecode":"11SCHEcp000011260314000244159551","isRecord":"0",
+               "endtime":"2026.03.14 01:40:00","begintime":"2026.03.14 00:56:00",
+               "isFuture":"0","isBack":"0","isLive":"1","prevuename":"生活圈"}
+            ]}
+        """.trimIndent()
+        val programs = CtcResponseParsers.parsePrograms(json)
+        assertEquals(2, programs.size)
+        assertEquals("中华考工记(8)", programs[0].name)
+        assertTrue(programs[0].isReplayable)
+        assertTrue(programs[1].isLive)
+        // Times actually parsed (not dropped): program 0 spans 56 minutes.
+        assertEquals(56 * 60, java.time.Duration.between(programs[0].start, programs[0].end).seconds)
     }
 
     @Test

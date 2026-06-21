@@ -1,7 +1,6 @@
 package com.example.atv.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,13 +11,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -156,13 +159,41 @@ private fun ProgramList(
     programs: List<Program>,
     currentTime: Instant
 ) {
+    // Index of the program to centre on: the one airing now, else the first one that
+    // hasn't ended yet (when we're between scheduled programs), else the first row.
+    val nowIndex = remember(programs, currentTime) {
+        programs.indexOfFirst { it.airsAt(currentTime) }
+            .takeIf { it >= 0 }
+            ?: programs.indexOfFirst { it.end.isAfter(currentTime) }.takeIf { it >= 0 }
+            ?: 0
+    }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (nowIndex - 2).coerceAtLeast(0)
+    )
+    val nowFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(programs) {
+        if (programs.isNotEmpty()) {
+            runCatching { nowFocusRequester.requestFocus() }
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        items(programs, key = { it.code }) { program ->
-            ProgramRow(program = program, currentTime = currentTime)
+        itemsIndexed(programs, key = { _, program -> program.code }) { index, program ->
+            ProgramRow(
+                program = program,
+                currentTime = currentTime,
+                modifier = if (index == nowIndex) {
+                    Modifier.focusRequester(nowFocusRequester)
+                } else {
+                    Modifier
+                }
+            )
         }
     }
 }
@@ -170,45 +201,58 @@ private fun ProgramList(
 @Composable
 private fun ProgramRow(
     program: Program,
-    currentTime: Instant
+    currentTime: Instant,
+    modifier: Modifier = Modifier
 ) {
     val isAiring = program.airsAt(currentTime)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                if (isAiring) {
-                    AtvColors.Primary.copy(alpha = 0.2f)
-                } else {
-                    AtvColors.SurfaceVariant.copy(alpha = 0.3f)
-                }
+    Surface(
+        onClick = {},
+        modifier = modifier.fillMaxWidth(),
+        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (isAiring) {
+                AtvColors.Primary.copy(alpha = 0.2f)
+            } else {
+                AtvColors.SurfaceVariant.copy(alpha = 0.3f)
+            },
+            focusedContainerColor = AtvColors.Primary.copy(alpha = 0.4f)
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(
+                border = BorderStroke(width = 2.dp, color = AtvColors.FocusRing),
+                shape = RoundedCornerShape(8.dp)
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        )
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                text = "${rowTimeFormatter.format(program.start)}–${rowTimeFormatter.format(program.end)}",
-                style = AtvTypography.labelMedium,
-                color = if (isAiring) AtvColors.Primary else AtvColors.OnSurfaceVariant
-            )
-            Text(
-                text = program.name,
-                style = AtvTypography.bodyLarge,
-                color = AtvColors.OnSurface,
-                maxLines = 1
-            )
-        }
-        if (isAiring) {
-            LinearProgressIndicator(
-                progress = { program.progress(currentTime) },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${rowTimeFormatter.format(program.start)}–${rowTimeFormatter.format(program.end)}",
+                    style = AtvTypography.labelMedium,
+                    color = if (isAiring) AtvColors.Primary else AtvColors.OnSurfaceVariant
+                )
+                Text(
+                    text = program.name,
+                    style = AtvTypography.bodyLarge,
+                    color = AtvColors.OnSurface,
+                    maxLines = 1
+                )
+            }
+            if (isAiring) {
+                LinearProgressIndicator(
+                    progress = { program.progress(currentTime) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
