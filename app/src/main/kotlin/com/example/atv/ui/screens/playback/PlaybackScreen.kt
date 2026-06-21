@@ -107,10 +107,21 @@ fun PlaybackScreen(
                     viewModel.dismissActiveOverlay()
                 },
                 onMenu = {
-                    if (!uiState.hasActiveOverlay) {
-                        viewModel.showSettings()
-                        true
-                    } else false
+                    when {
+                        // Error overlay is a stuck state — let Menu escape to Settings
+                        // (e.g. to load a different playlist) instead of trapping the user
+                        // with only Retry / Next channel.
+                        uiState.showError -> {
+                            viewModel.dismissError()
+                            viewModel.showSettings()
+                            true
+                        }
+                        !uiState.hasActiveOverlay -> {
+                            viewModel.showSettings()
+                            true
+                        }
+                        else -> false
+                    }
                 }
             )
     ) {
