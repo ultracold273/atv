@@ -131,7 +131,7 @@ class PlaybackViewModelTest {
             // Given
             val channels = listOf(TestFixtures.SAMPLE_CHANNEL, TestFixtures.SAMPLE_CHANNEL_2)
             every { channelRepository.getAllChannels() } returns flowOf(channels)
-            every { atvPlayer.playChannel(any()) } just runs
+            every { atvPlayer.playChannel(any(), any()) } just runs
             
             // When
             viewModel = createViewModel()
@@ -151,7 +151,7 @@ class PlaybackViewModelTest {
             )
             every { channelRepository.getAllChannels() } returns flowOf(channels)
             every { preferencesRepository.getLastChannelNumber() } returns flowOf(2)
-            every { atvPlayer.playChannel(any()) } just runs
+            every { atvPlayer.playChannel(any(), any()) } just runs
             
             // When
             viewModel = createViewModel()
@@ -171,7 +171,7 @@ class PlaybackViewModelTest {
             // Given
             val channel = TestFixtures.SAMPLE_CHANNEL
             every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
-            every { atvPlayer.playChannel(any()) } just runs
+            every { atvPlayer.playChannel(any(), any()) } just runs
             
             viewModel = createViewModel()
             advanceUntilIdle()
@@ -181,7 +181,7 @@ class PlaybackViewModelTest {
             advanceUntilIdle()
             
             // Then
-            verify { atvPlayer.playChannel(channel) }
+            verify { atvPlayer.playChannel(channel, any()) }
         }
         
         @Test
@@ -189,7 +189,7 @@ class PlaybackViewModelTest {
             // Given
             val channel = TestFixtures.SAMPLE_CHANNEL.copy(number = 5)
             every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
-            every { atvPlayer.playChannel(any()) } just runs
+            every { atvPlayer.playChannel(any(), any()) } just runs
             
             viewModel = createViewModel()
             advanceUntilIdle()
@@ -227,7 +227,7 @@ class PlaybackViewModelTest {
             // Given
             val channel = TestFixtures.SAMPLE_CHANNEL
             every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
-            every { atvPlayer.playChannel(any()) } just runs
+            every { atvPlayer.playChannel(any(), any()) } just runs
             
             viewModel = createViewModel()
             advanceUntilIdle()
@@ -252,7 +252,7 @@ class PlaybackViewModelTest {
             val channel1 = TestFixtures.SAMPLE_CHANNEL.copy(number = 1)
             val channel2 = TestFixtures.SAMPLE_CHANNEL_2.copy(number = 2)
             every { channelRepository.getAllChannels() } returns flowOf(listOf(channel1, channel2))
-            every { atvPlayer.playChannel(any()) } just runs
+            every { atvPlayer.playChannel(any(), any()) } just runs
             coEvery { switchChannelUseCase.nextChannel(channel1) } returns channel2
             
             viewModel = createViewModel()
@@ -272,7 +272,7 @@ class PlaybackViewModelTest {
             val channel1 = TestFixtures.SAMPLE_CHANNEL.copy(number = 1)
             val channel2 = TestFixtures.SAMPLE_CHANNEL_2.copy(number = 2)
             every { channelRepository.getAllChannels() } returns flowOf(listOf(channel1, channel2))
-            every { atvPlayer.playChannel(any()) } just runs
+            every { atvPlayer.playChannel(any(), any()) } just runs
             // Current channel is channel1 (index 0), so previousChannel will be called with channel1
             coEvery { switchChannelUseCase.previousChannel(any()) } returns channel2
             

@@ -44,6 +44,11 @@ interface PreferencesRepository {
     suspend fun setEpgEnabled(enabled: Boolean)
 
     /**
+     * Update the udpxy proxy address (host:port). Blank/null removes it.
+     */
+    suspend fun setUdpxyProxy(value: String?)
+
+    /**
      * Clear all preferences.
      */
     suspend fun clear()

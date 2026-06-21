@@ -30,6 +30,7 @@ class UserPreferencesDataStore @Inject constructor(
         val PLAYLIST_FILE_PATH = stringPreferencesKey("playlist_file_path")
         val AUTO_PLAY_ON_LAUNCH = booleanPreferencesKey("auto_play_on_launch")
         val EPG_ENABLED = booleanPreferencesKey("epg_enabled")
+        val UDPXY_PROXY = stringPreferencesKey("udpxy_proxy")
     }
 
     /**
@@ -41,7 +42,8 @@ class UserPreferencesDataStore @Inject constructor(
                 lastChannelNumber = preferences[Keys.LAST_CHANNEL_NUMBER] ?: 1,
                 playlistFilePath = preferences[Keys.PLAYLIST_FILE_PATH],
                 autoPlayOnLaunch = preferences[Keys.AUTO_PLAY_ON_LAUNCH] ?: true,
-                epgEnabled = preferences[Keys.EPG_ENABLED] ?: false
+                epgEnabled = preferences[Keys.EPG_ENABLED] ?: false,
+                udpxyProxy = preferences[Keys.UDPXY_PROXY] ?: UserPreferences.DEFAULT_UDPXY_PROXY
             )
         }
     
@@ -94,6 +96,19 @@ class UserPreferencesDataStore @Inject constructor(
     suspend fun setEpgEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[Keys.EPG_ENABLED] = enabled
+        }
+    }
+
+    /**
+     * Update the udpxy proxy address (host:port). Blank/null removes it.
+     */
+    suspend fun setUdpxyProxy(value: String?) {
+        context.dataStore.edit { preferences ->
+            if (value.isNullOrBlank()) {
+                preferences.remove(Keys.UDPXY_PROXY)
+            } else {
+                preferences[Keys.UDPXY_PROXY] = value.trim()
+            }
         }
     }
     

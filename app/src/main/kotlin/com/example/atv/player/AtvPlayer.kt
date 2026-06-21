@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.example.atv.domain.model.Channel
+import com.example.atv.domain.util.UdpxyUrlRewriter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,10 @@ class AtvPlayer @Inject constructor(
 ) {
     private var exoPlayer: ExoPlayer? = null
     private var currentChannel: Channel? = null
+
+    // Stream URL actually handed to ExoPlayer — already rewritten through the udpxy
+    // proxy when applicable. Kept so retry() replays the proxied URL, not the raw igmp://.
+    private var resolvedStreamUrl: String? = null
     
     private val _playerState = MutableStateFlow<PlayerState>(PlayerState.Idle)
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
@@ -227,33 +232,44 @@ class AtvPlayer @Inject constructor(
     /**
      * Play a channel.
      */
-    fun playChannel(channel: Channel) {
+    fun playChannel(channel: Channel, udpxyProxy: String? = null) {
         Timber.d("Playing channel: ${channel.number} - ${channel.name}")
         currentChannel = channel
+        val resolved = UdpxyUrlRewriter.rewrite(channel.streamUrl, udpxyProxy)
+        resolvedStreamUrl = resolved
         _playerState.value = PlayerState.Loading(channel)
-        
+
         val player = exoPlayer
         if (player == null) {
             Timber.w("Player not initialized, initializing now")
             initialize()
         }
-        
+
         exoPlayer?.apply {
             stop()
             clearMediaItems()
-            
-            val mediaItem = MediaItem.fromUri(channel.streamUrl)
+
+            val mediaItem = MediaItem.fromUri(resolved)
             setMediaItem(mediaItem)
             prepare()
             play()
         }
     }
-    
+
     /**
      * Retry playing the current channel.
      */
     fun retry() {
-        currentChannel?.let { playChannel(it) }
+        val channel = currentChannel ?: return
+        _playerState.value = PlayerState.Loading(channel)
+        exoPlayer?.apply {
+            stop()
+            clearMediaItems()
+            val mediaItem = MediaItem.fromUri(resolvedStreamUrl ?: channel.streamUrl)
+            setMediaItem(mediaItem)
+            prepare()
+            play()
+        }
     }
     
     /**

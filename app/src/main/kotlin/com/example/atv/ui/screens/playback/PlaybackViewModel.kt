@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.R
 import com.example.atv.domain.model.Channel
-import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
 import com.example.atv.domain.repository.EpgProvider
@@ -15,7 +14,6 @@ import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
 import com.example.atv.ui.components.SnackBarManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,7 +27,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.time.Clock
 import javax.inject.Inject
@@ -96,6 +93,22 @@ class PlaybackViewModel @Inject constructor(
         observePlayerState()
         observeEpgFlags()
         observePanelEpg()
+        observeUdpxyProxy()
+    }
+
+    // Latest udpxy proxy from preferences, passed to AtvPlayer.playChannel so
+    // igmp:// channel URLs are relayed over HTTP. Seeded with the default so the
+    // startup auto-play (which races observeUdpxyProxy) never uses a null proxy.
+    // Volatile: written from a collector coroutine, read on the playback call path.
+    @Volatile
+    private var udpxyProxy: String? = UserPreferences.DEFAULT_UDPXY_PROXY
+
+    private fun observeUdpxyProxy() {
+        viewModelScope.launch {
+            preferencesRepository.getUserPreferences()
+                .map { it.udpxyProxy }
+                .collect { udpxyProxy = it }
+        }
     }
     
     private fun observeChannels() {
@@ -233,6 +246,13 @@ class PlaybackViewModel @Inject constructor(
      * In 004 alone this is always null, so the no-op early-return path is exercised.
      */
     fun onChannelFocused(channel: Channel) {
+        // Moving to a different channel resets the EPG day back to Today — a
+        // Yesterday/Tomorrow selection is per-channel and must not carry over (same
+        // rule as reopening the overlay, FR-009).
+        if (_uiState.value.epgPanel.focusedChannel?.number != channel.number) {
+            dateOffsetFlow.value = 0
+            _uiState.update { it.copy(epgPanel = it.epgPanel.copy(dateOffset = 0)) }
+        }
         val code = channel.channelCode ?: run {
             _uiState.update {
                 it.copy(epgPanel = it.epgPanel.copy(focusedChannel = channel, isLoading = false))
@@ -313,7 +333,7 @@ class PlaybackViewModel @Inject constructor(
         val index = _uiState.value.channels.indexOfFirst { it.number == channel.number }
         _uiState.update { it.copy(currentChannelIndex = index.coerceAtLeast(0)) }
 
-        atvPlayer.playChannel(channel)
+        atvPlayer.playChannel(channel, udpxyProxy)
         showChannelInfo()
         loadBannerEpgFor(channel)
 

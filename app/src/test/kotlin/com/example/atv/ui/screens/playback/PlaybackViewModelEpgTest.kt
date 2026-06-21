@@ -285,4 +285,51 @@ class PlaybackViewModelEpgTest {
         assertThrows(IllegalArgumentException::class.java) { viewModel.setEpgDateOffset(2) }
         assertThrows(IllegalArgumentException::class.java) { viewModel.setEpgDateOffset(-2) }
     }
+
+    @Test
+    fun `focusing a different channel resets EPG date offset to today`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+        coEvery { epgProvider.fetchPrograms(any(), any()) } returns Result.success(emptyList())
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val chA = TestFixtures.SAMPLE_CHANNEL.copy(number = 1)
+
+        // Focus channel A on Tomorrow, letting the panel flow write the offset into uiState.
+        viewModel.onChannelFocusedWithCode(chA, "A")
+        viewModel.setEpgDateOffset(1)
+        advanceTimeBy(300)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.epgPanel.dateOffset)
+
+        // Moving to a different channel must snap the day back to Today immediately.
+        val chB = TestFixtures.SAMPLE_CHANNEL.copy(number = 2)
+        viewModel.onChannelFocused(chB)
+        advanceUntilIdle()
+        assertEquals(0, viewModel.uiState.value.epgPanel.dateOffset)
+    }
+
+    @Test
+    fun `re-focusing the same channel does not reset the date offset`() = runTest {
+        prefsFlow.value = UserPreferences(epgEnabled = true)
+        isConfiguredFlow.value = true
+        every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+        coEvery { epgProvider.fetchPrograms(any(), any()) } returns Result.success(emptyList())
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val ch = TestFixtures.SAMPLE_CHANNEL.copy(number = 1)
+        viewModel.onChannelFocusedWithCode(ch, "A")
+        viewModel.setEpgDateOffset(1)
+        advanceTimeBy(300)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.epgPanel.dateOffset)
+
+        // Re-focusing the SAME channel number must not reset a manually chosen day.
+        viewModel.onChannelFocused(ch.copy(channelCode = "A"))
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.epgPanel.dateOffset)
+    }
 }

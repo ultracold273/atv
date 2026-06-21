@@ -3,8 +3,10 @@ package com.example.atv.ui.screens.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import com.example.atv.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -145,6 +149,11 @@ fun SettingsScreen(
                     title = stringResource(R.string.iptv_setup_title),
                     subtitle = uiState.iptvSetupSubtitle.resolve(),
                     onClick = onNavigateToIptvSetup
+                )
+
+                UdpxyProxyItem(
+                    value = uiState.udpxyProxy,
+                    onValueChange = { viewModel.setUdpxyProxy(it) }
                 )
 
                 SettingsItem(
@@ -324,6 +333,53 @@ private fun ToggleSettingsItem(
                 )
             )
         }
+    }
+}
+
+@Composable
+private fun UdpxyProxyItem(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AtvColors.Surface, RoundedCornerShape(12.dp))
+            .padding(16.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.udpxy_proxy_title),
+            style = AtvTypography.titleMedium,
+            color = AtvColors.OnSurface
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.udpxy_proxy_subtitle),
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.OnSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(stringResource(R.string.udpxy_proxy_label)) },
+            placeholder = { Text(stringResource(R.string.udpxy_proxy_hint)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = AtvColors.OnSurface,
+                unfocusedTextColor = AtvColors.OnSurface,
+                focusedContainerColor = AtvColors.SurfaceVariant,
+                unfocusedContainerColor = AtvColors.SurfaceVariant,
+                cursorColor = AtvColors.Primary,
+                focusedBorderColor = AtvColors.Primary,
+                unfocusedBorderColor = AtvColors.OnSurfaceVariant,
+                focusedLabelColor = AtvColors.Primary,
+                unfocusedLabelColor = AtvColors.OnSurfaceVariant,
+            )
+        )
     }
 }
 

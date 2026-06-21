@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text as M3Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -157,6 +158,17 @@ private fun IptvField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
         supportingText = supportingText?.let { { M3Text(it) } },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = AtvColors.OnSurface,
+            unfocusedTextColor = AtvColors.OnSurface,
+            focusedContainerColor = AtvColors.Surface,
+            unfocusedContainerColor = AtvColors.Surface,
+            cursorColor = AtvColors.Primary,
+            focusedBorderColor = AtvColors.Primary,
+            unfocusedBorderColor = AtvColors.OnSurfaceVariant,
+            focusedLabelColor = AtvColors.Primary,
+            unfocusedLabelColor = AtvColors.OnSurfaceVariant,
+        ),
     )
 }
 
