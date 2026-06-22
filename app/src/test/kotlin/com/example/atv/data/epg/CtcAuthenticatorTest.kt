@@ -88,7 +88,7 @@ class CtcAuthenticatorTest {
     }
 
     @Test
-    fun `plaintext format is rand dollar encryToken dollar userId dollar stbId dollar ip dollar mac dollar dollar CTC`() {
+    fun `plaintext joins fields with dollar separators and CTC suffix`() {
         val pt = CtcAuthenticator.plaintext(
             rand = 12345678L,
             encryToken = "tok",

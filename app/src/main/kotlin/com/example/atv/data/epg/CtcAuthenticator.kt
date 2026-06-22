@@ -18,6 +18,9 @@ object CtcAuthenticator {
     private const val KEY_ALGO = "DESede"
     private const val RAND_MIN = 10_000_000L
     private const val RAND_MAX = 99_999_999L
+    private const val KEY_LENGTH_BYTES = 24
+    private const val HEX_NIBBLE_BITS = 4
+    private const val HEX_NIBBLE_MASK = 0x0F
 
     /**
      * 3DES-ECB encrypt with PKCS5/PKCS7 padding (PKCS5 in JCE name == PKCS7 for 8-byte blocks).
@@ -33,9 +36,10 @@ object CtcAuthenticator {
 
     /** Pad password to 24 ASCII bytes with '0', as in `password.ljust(24, "0").encode()`. */
     fun deriveKey(password: String): ByteArray =
-        password.padEnd(24, '0').toByteArray(Charsets.US_ASCII)
+        password.padEnd(KEY_LENGTH_BYTES, '0').toByteArray(Charsets.US_ASCII)
 
     /** Build the plaintext exactly as the Python reference does (line 208-211). */
+    @Suppress("LongParameterList") // Mirrors the CTC reference plaintext field order
     fun plaintext(
         rand: Long,
         encryToken: String,
@@ -53,6 +57,7 @@ object CtcAuthenticator {
      * Production entrypoint. Caller supplies a seed for deterministic tests; production
      * callers pass `System.nanoTime()` (or any varied seed).
      */
+    @Suppress("LongParameterList") // Mirrors the CTC login authenticator inputs
     fun buildAuthenticator(
         userId: String,
         password: String,
@@ -71,6 +76,7 @@ object CtcAuthenticator {
      * this to byte-match the Python reference (whose Mersenne Twister cannot be replicated by
      * `java.util.Random`).
      */
+    @Suppress("LongParameterList") // Mirrors the CTC login authenticator inputs
     fun buildAuthenticatorWithRand(
         userId: String,
         password: String,
@@ -89,8 +95,8 @@ object CtcAuthenticator {
     private fun ByteArray.toHex(): String {
         val sb = StringBuilder(size * 2)
         for (b in this) {
-            sb.append(HEX[(b.toInt() ushr 4) and 0x0F])
-            sb.append(HEX[b.toInt() and 0x0F])
+            sb.append(HEX[(b.toInt() ushr HEX_NIBBLE_BITS) and HEX_NIBBLE_MASK])
+            sb.append(HEX[b.toInt() and HEX_NIBBLE_MASK])
         }
         return sb.toString()
     }

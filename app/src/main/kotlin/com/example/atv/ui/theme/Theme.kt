@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName") // Groups AtvColors, the color scheme, and AtvTheme
+
 package com.example.atv.ui.theme
 
 import androidx.compose.runtime.Composable

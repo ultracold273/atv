@@ -89,6 +89,7 @@ class SetupViewModel @Inject constructor(
     /**
      * Load demo playlist bundled in app assets (for testing without file picker)
      */
+    @Suppress("TooGenericExceptionCaught") // Boundary: surface any demo-load failure as a UI message
     fun loadDemoPlaylist() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }

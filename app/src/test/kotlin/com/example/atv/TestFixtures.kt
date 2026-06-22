@@ -74,7 +74,7 @@ object TestFixtures {
         https://example.com/stream.m3u8
     """.trimIndent()
     
-    val INVALID_M3U8_EMPTY = ""
+    const val INVALID_M3U8_EMPTY = ""
     
     val INVALID_M3U8_NO_CHANNELS = """
         #EXTM3U

@@ -208,12 +208,7 @@ class CtcAuthClient @Inject constructor(
     private fun OkHttpClient.exec(req: Request): String =
         newCall(req).executeIo().use { it.body?.string().orEmpty() }
 
-    private fun okhttp3.Call.executeIo(): okhttp3.Response =
-        try {
-            execute()
-        } catch (e: IOException) {
-            throw e
-        }
+    private fun okhttp3.Call.executeIo(): okhttp3.Response = execute()
 }
 
 /**

@@ -40,6 +40,8 @@ import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
 
+private const val CONTENT_WIDTH_FRACTION = 0.7f
+
 /**
  * Setup screen for loading playlist files.
  */
@@ -208,7 +210,7 @@ private fun UrlInputDialog(
     
     Column(
         modifier = Modifier
-            .fillMaxWidth(0.7f)
+            .fillMaxWidth(CONTENT_WIDTH_FRACTION)
             .background(
                 color = AtvColors.Surface,
                 shape = RoundedCornerShape(16.dp)

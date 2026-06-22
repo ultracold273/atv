@@ -35,6 +35,7 @@ import javax.inject.Inject
  * ViewModel for the playback screen.
  */
 @HiltViewModel
+@Suppress("TooManyFunctions", "LongParameterList") // Central playback ViewModel: many UI actions + injected deps
 class PlaybackViewModel @Inject constructor(
     private val application: Application,
     private val atvPlayer: AtvPlayer,
@@ -67,6 +68,7 @@ class PlaybackViewModel @Inject constructor(
     companion object {
         private const val CHANNEL_INFO_AUTO_HIDE_MS = 3000L
         private const val OVERLAY_AUTO_HIDE_MS = 10000L
+        private const val MAX_CHANNEL_DIGITS = 3
         private const val SETTINGS_AUTO_HIDE_MS = 30000L
 
         /**
@@ -459,7 +461,7 @@ class PlaybackViewModel @Inject constructor(
             return
         }
         
-        val newInput = (currentInput + digit).take(3)
+        val newInput = (currentInput + digit).take(MAX_CHANNEL_DIGITS)
         _uiState.update { it.copy(numberPadInput = newInput) }
         // Reset auto-hide timer
         startOverlayAutoHide(OVERLAY_AUTO_HIDE_MS) { hideNumberPad() }

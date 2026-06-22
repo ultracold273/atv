@@ -42,6 +42,8 @@ import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import kotlinx.coroutines.delay
 
+private const val FOCUS_REQUEST_DELAY_MS = 100L
+
 /**
  * On-screen number pad for direct channel selection.
  */
@@ -52,7 +54,6 @@ fun NumberPadOverlay(
     maxChannels: Int,
     onDigitPressed: (String) -> Unit,
     onBackspace: () -> Unit,
-    onClear: () -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     onUserInteraction: () -> Unit = {},
@@ -87,7 +88,7 @@ fun NumberPadOverlay(
             LaunchedEffect(visible) {
                 if (visible) {
                     // Delay to prevent SELECT key from triggering click on focused button
-                    delay(100)
+                    delay(FOCUS_REQUEST_DELAY_MS)
                     centerButtonFocusRequester.requestFocus()
                 }
             }
@@ -162,7 +163,12 @@ fun NumberPadOverlay(
                     }
                     // Row CLR-0-GO
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ActionButton(stringResource(R.string.clear), AtvColors.OnSurfaceVariant, onBackspace, onUserInteraction)
+                        ActionButton(
+                            stringResource(R.string.clear),
+                            AtvColors.OnSurfaceVariant,
+                            onBackspace,
+                            onUserInteraction
+                        )
                         NumberButton("0", onDigitPressed, onUserInteraction)
                         ActionButton(stringResource(R.string.go), AtvColors.Secondary, onConfirm, onUserInteraction)
                     }

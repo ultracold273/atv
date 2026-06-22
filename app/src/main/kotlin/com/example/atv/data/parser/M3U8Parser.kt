@@ -39,7 +39,6 @@ class M3U8Parser @Inject constructor() {
         // Regex patterns for attribute extraction
         private val GROUP_TITLE_REGEX = """group-title="([^"]*)"""".toRegex()
         private val TVG_LOGO_REGEX = """tvg-logo="([^"]*)"""".toRegex()
-        private val TVG_NAME_REGEX = """tvg-name="([^"]*)"""".toRegex()
     }
     
     /**
@@ -64,45 +63,9 @@ class M3U8Parser @Inject constructor() {
         var skippedLines = 0
         
         for ((index, line) in lines.withIndex()) {
-            try {
-                when {
-                    line.startsWith(M3U_HEADER) -> {
-                        // Skip header
-                    }
-                    line.startsWith(EXTINF_PREFIX) -> {
-                        currentExtInf = line
-                    }
-                    line.startsWith("#") -> {
-                        // Skip other comments/directives
-                    }
-                    isValidUrl(line) -> {
-                        if (currentExtInf != null) {
-                            val channel = parseChannel(currentExtInf, line, channels.size + 1)
-                            if (channel != null) {
-                                channels.add(channel)
-                            } else {
-                                skippedLines++
-                                Timber.w("Failed to parse channel at line $index")
-                            }
-                        } else {
-                            // URL without EXTINF, create minimal channel
-                            val name = extractFileName(line)
-                            channels.add(
-                                Channel(
-                                    number = channels.size + 1,
-                                    name = name,
-                                    streamUrl = line
-                                )
-                            )
-                        }
-                        currentExtInf = null
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.w(e, "Error parsing line $index: $line")
-                skippedLines++
-                currentExtInf = null
-            }
+            val outcome = processLine(line, index, currentExtInf, channels)
+            currentExtInf = outcome.nextExtInf
+            skippedLines += outcome.skipped
         }
         
         return if (channels.isEmpty()) {
@@ -113,6 +76,58 @@ class M3U8Parser @Inject constructor() {
         }
     }
     
+    private data class LineOutcome(val nextExtInf: String?, val skipped: Int)
+
+    // Broad catch is intentional: a malformed line is skipped, never aborts the whole
+    // import. No narrower checked exception type is thrown by the parsing helpers.
+    @Suppress("TooGenericExceptionCaught")
+    private fun processLine(
+        line: String,
+        index: Int,
+        currentExtInf: String?,
+        channels: MutableList<Channel>,
+    ): LineOutcome {
+        return try {
+            when {
+                line.startsWith(M3U_HEADER) -> LineOutcome(currentExtInf, 0)
+                line.startsWith(EXTINF_PREFIX) -> LineOutcome(line, 0)
+                line.startsWith("#") -> LineOutcome(currentExtInf, 0)
+                isValidUrl(line) -> handleUrlLine(line, index, currentExtInf, channels)
+                else -> LineOutcome(currentExtInf, 0)
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Error parsing line $index: $line")
+            LineOutcome(null, 1)
+        }
+    }
+
+    private fun handleUrlLine(
+        line: String,
+        index: Int,
+        currentExtInf: String?,
+        channels: MutableList<Channel>,
+    ): LineOutcome {
+        if (currentExtInf == null) {
+            // URL without EXTINF, create minimal channel
+            channels.add(
+                Channel(
+                    number = channels.size + 1,
+                    name = extractFileName(line),
+                    streamUrl = line
+                )
+            )
+            return LineOutcome(null, 0)
+        }
+        val channel = parseChannel(currentExtInf, line, channels.size + 1)
+        return if (channel != null) {
+            channels.add(channel)
+            LineOutcome(null, 0)
+        } else {
+            Timber.w("Failed to parse channel at line $index")
+            LineOutcome(null, 1)
+        }
+    }
+
     private fun parseChannel(extinf: String, url: String, number: Int): Channel? {
         // Extract name - everything after the last comma
         val name = extinf.substringAfterLast(",").trim()

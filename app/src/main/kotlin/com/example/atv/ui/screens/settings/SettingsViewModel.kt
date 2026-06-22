@@ -87,6 +87,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
     
+    @Suppress("TooGenericExceptionCaught") // Boundary: surface any settings-load failure as a UI message
     private fun loadSettings() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
@@ -156,6 +157,7 @@ class SettingsViewModel @Inject constructor(
     /**
      * Clears all channels and resets preferences.
      */
+    @Suppress("TooGenericExceptionCaught") // Boundary: surface any clear-data failure as a UI message
     fun clearAllData() {
         viewModelScope.launch {
             try {

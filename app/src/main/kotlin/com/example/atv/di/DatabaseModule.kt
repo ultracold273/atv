@@ -21,6 +21,7 @@ object DatabaseModule {
     
     @Provides
     @Singleton
+    @Suppress("SpreadOperator") // Room's addMigrations is vararg-only; spread is required
     fun provideDatabase(
         @ApplicationContext context: Context
     ): AtvDatabase {
