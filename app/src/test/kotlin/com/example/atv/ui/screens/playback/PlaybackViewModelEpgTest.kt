@@ -3,11 +3,14 @@ package com.example.atv.ui.screens.playback
 import android.app.Application
 import com.example.atv.R
 import com.example.atv.TestFixtures
+import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.ChannelSourceSettingsStore
 import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.domain.usecase.ResolveStreamUrlUseCase
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
@@ -57,6 +60,9 @@ class PlaybackViewModelEpgTest {
     private lateinit var channelRepository: ChannelRepository
 
     @MockK
+    private lateinit var channelSourceSettingsStore: ChannelSourceSettingsStore
+
+    @MockK
     private lateinit var preferencesRepository: PreferencesRepository
 
     @MockK
@@ -84,6 +90,7 @@ class PlaybackViewModelEpgTest {
         every { atvPlayer.player } returns mockk(relaxed = true)
         every { atvPlayer.initialize() } just runs
         every { channelRepository.getAllChannels() } returns flowOf(emptyList())
+        every { channelSourceSettingsStore.observeMode() } returns flowOf(ChannelSourceMode.DIRECT_CTC)
         every { preferencesRepository.getLastChannelNumber() } returns flowOf(1)
         every { preferencesRepository.getUserPreferences() } returns prefsFlow
         coEvery { preferencesRepository.setLastChannelNumber(any()) } just runs
@@ -100,8 +107,10 @@ class PlaybackViewModelEpgTest {
         application = application,
         atvPlayer = atvPlayer,
         channelRepository = channelRepository,
+        channelSourceSettingsStore = channelSourceSettingsStore,
         preferencesRepository = preferencesRepository,
         switchChannelUseCase = switchChannelUseCase,
+        resolveStreamUrl = ResolveStreamUrlUseCase(),
         epgProvider = epgProvider,
         clock = fixedClock
     )

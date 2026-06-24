@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.atv.ui.components.AppSnackBar
+import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.ui.screens.channelmanagement.ChannelManagementScreen
 import com.example.atv.ui.screens.iptv.IptvSettingsScreen
 import com.example.atv.ui.screens.playback.PlaybackScreen
@@ -26,6 +27,7 @@ object Routes {
     const val CHANNEL_MANAGEMENT = "channel_management"
     const val SETTINGS = "settings"
     const val IPTV_SETTINGS = "iptv_settings"
+    const val CHANNEL_SOURCE_M3U8 = "channel_source_m3u8"
 }
 
 /**
@@ -43,10 +45,8 @@ fun AtvNavGraph(
         ) {
         composable(Routes.SETUP) {
             SetupScreen(
-                onPlaylistLoaded = {
-                    navController.navigate(Routes.PLAYBACK) {
-                        popUpTo(Routes.SETUP) { inclusive = true }
-                    }
+                onOpenChannelSource = {
+                    navController.navigate(Routes.CHANNEL_SOURCE_M3U8)
                 },
                 onBack = {
                     if (navController.previousBackStackEntry != null) {
@@ -59,7 +59,7 @@ fun AtvNavGraph(
         composable(Routes.PLAYBACK) {
             PlaybackScreen(
                 onNavigateToSetup = {
-                    navController.navigate(Routes.SETUP)
+                    navController.navigate(Routes.CHANNEL_SOURCE_M3U8)
                 },
                 onNavigateToChannelManagement = {
                     navController.navigate(Routes.CHANNEL_MANAGEMENT)
@@ -83,20 +83,31 @@ fun AtvNavGraph(
                 onBack = {
                     navController.popBackStack()
                 },
-                onLoadNewPlaylist = {
-                    navController.navigate(Routes.SETUP)
+                onNavigateToChannelSource = {
+                    navController.navigate(Routes.IPTV_SETTINGS)
                 },
                 onManageChannels = {
                     navController.navigate(Routes.CHANNEL_MANAGEMENT)
-                },
-                onNavigateToIptvSetup = {
-                    navController.navigate(Routes.IPTV_SETTINGS)
                 }
             )
         }
 
         composable(Routes.IPTV_SETTINGS) {
             IptvSettingsScreen(
+                onBack = {
+                    if (navController.previousBackStackEntry != null) {
+                        navController.popBackStack()
+                        true
+                    } else {
+                        false
+                    }
+                }
+            )
+        }
+
+        composable(Routes.CHANNEL_SOURCE_M3U8) {
+            IptvSettingsScreen(
+                initialMode = ChannelSourceMode.M3U8,
                 onBack = {
                     if (navController.previousBackStackEntry != null) {
                         navController.popBackStack()
