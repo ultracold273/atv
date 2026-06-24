@@ -1,9 +1,8 @@
 package com.example.atv.data.epg
 
 import com.example.atv.di.ApplicationScope
-import com.example.atv.domain.repository.IptvCredentialsStore
-import com.example.atv.domain.usecase.ImportCtcChannelsUseCase
 import com.example.atv.domain.usecase.ImportResult
+import com.example.atv.domain.usecase.UnifiedImportChannelsUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,8 +26,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class IptvSessionBootstrapper @Inject constructor(
-    private val credentialsStore: IptvCredentialsStore,
-    private val importChannels: ImportCtcChannelsUseCase,
+    private val importChannels: UnifiedImportChannelsUseCase,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
     private val started = AtomicBoolean(false)
@@ -39,9 +37,8 @@ class IptvSessionBootstrapper @Inject constructor(
     fun start() {
         if (!started.compareAndSet(false, true)) return
         scope.launch {
-            val creds = credentialsStore.read()
-            if (creds == null || !creds.isComplete) {
-                Timber.d("IPTV bootstrap: no/incomplete credentials, skipping")
+            if (!importChannels.canBootstrap()) {
+                Timber.d("IPTV bootstrap: no complete refreshable source, skipping")
                 return@launch
             }
             val result = importChannels()

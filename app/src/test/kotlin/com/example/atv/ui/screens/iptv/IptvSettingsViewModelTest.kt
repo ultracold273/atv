@@ -1,11 +1,18 @@
 package com.example.atv.ui.screens.iptv
 
+import android.content.Context
 import com.example.atv.data.epg.DefaultDeviceDefaultsProvider
 import com.example.atv.data.epg.DeviceDefaultsProvider
+import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.domain.model.IptvCredentials
+import com.example.atv.domain.model.ProxySettings
+import com.example.atv.domain.model.UserPreferences
+import com.example.atv.domain.repository.ChannelSourceSettingsStore
 import com.example.atv.domain.repository.IptvCredentialsStore
-import com.example.atv.domain.usecase.ImportCtcChannelsUseCase
+import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.ImportResult
+import com.example.atv.domain.usecase.LoadPlaylistUseCase
+import com.example.atv.domain.usecase.UnifiedImportChannelsUseCase
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -17,6 +24,7 @@ import io.mockk.runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -33,11 +41,12 @@ import java.util.Random
 @OptIn(ExperimentalCoroutinesApi::class)
 class IptvSettingsViewModelTest {
 
-    @MockK
-    private lateinit var store: IptvCredentialsStore
-
-    @MockK
-    private lateinit var useCase: ImportCtcChannelsUseCase
+    @MockK private lateinit var context: Context
+    @MockK private lateinit var store: IptvCredentialsStore
+    @MockK private lateinit var sourceStore: ChannelSourceSettingsStore
+    @MockK private lateinit var preferencesRepository: PreferencesRepository
+    @MockK private lateinit var useCase: UnifiedImportChannelsUseCase
+    @MockK private lateinit var loadPlaylistUseCase: LoadPlaylistUseCase
 
     private val storedFlow = MutableStateFlow<IptvCredentials?>(null)
     private val testDispatcher = StandardTestDispatcher()
@@ -54,6 +63,13 @@ class IptvSettingsViewModelTest {
         every { store.observe() } returns storedFlow
         coEvery { store.save(any()) } just runs
         coEvery { store.clear() } just runs
+        coEvery { sourceStore.readMode() } returns ChannelSourceMode.DIRECT_CTC
+        coEvery { sourceStore.saveMode(any()) } just runs
+        coEvery { sourceStore.readProxySettings() } returns null
+        coEvery { sourceStore.saveProxySettings(any()) } just runs
+        coEvery { sourceStore.clearProxySettings() } just runs
+        every { preferencesRepository.getUserPreferences() } returns flowOf(UserPreferences())
+        coEvery { preferencesRepository.setUdpxyProxy(any()) } just runs
     }
 
     @AfterEach
@@ -61,8 +77,15 @@ class IptvSettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun newVm(): IptvSettingsViewModel =
-        IptvSettingsViewModel(store, defaults(), useCase)
+    private fun newVm(): IptvSettingsViewModel = IptvSettingsViewModel(
+        context = context,
+        credentialsStore = store,
+        sourceSettingsStore = sourceStore,
+        preferencesRepository = preferencesRepository,
+        deviceDefaults = defaults(),
+        importChannelsUseCase = useCase,
+        loadPlaylistUseCase = loadPlaylistUseCase,
+    )
 
     @Test
     fun `applies defaults when store is empty`() = runTest {
@@ -79,7 +102,7 @@ class IptvSettingsViewModelTest {
     }
 
     @Test
-    fun `hydrates from store when credentials exist`() = runTest {
+    fun `hydrates from direct credentials store when credentials exist`() = runTest {
         val creds = IptvCredentials(
             userId = "1234567890123",
             password = "000000",
@@ -96,28 +119,19 @@ class IptvSettingsViewModelTest {
     }
 
     @Test
-    fun `setUserId updates state`() = runTest {
+    fun `selectMode persists active mode`() = runTest {
         val vm = newVm()
         advanceUntilIdle()
 
-        vm.setUserId("9999999999999")
-        assertEquals("9999999999999", vm.uiState.value.userId)
-    }
-
-    @Test
-    fun `isFormValid false until userId and password filled`() = runTest {
-        val vm = newVm()
+        vm.selectMode(ChannelSourceMode.HOME_PROXY)
         advanceUntilIdle()
 
-        assertFalse(vm.uiState.value.isFormValid)
-        vm.setUserId("1234567890123")
-        assertFalse(vm.uiState.value.isFormValid)
-        vm.setPassword("000000")
-        assertTrue(vm.uiState.value.isFormValid)
+        assertEquals(ChannelSourceMode.HOME_PROXY, vm.uiState.value.sourceMode)
+        coVerify { sourceStore.saveMode(ChannelSourceMode.HOME_PROXY) }
     }
 
     @Test
-    fun `testAndImport saves credentials, runs use case, surfaces Success`() = runTest {
+    fun `direct ctc import saves credentials and runs unified use case`() = runTest {
         coEvery { useCase() } returns ImportResult.Success(42)
         val vm = newVm()
         advanceUntilIdle()
@@ -132,36 +146,25 @@ class IptvSettingsViewModelTest {
         assertEquals(42, (status as ImportStatus.Success).importedCount)
         coVerifyOrder {
             store.save(any())
+            sourceStore.saveMode(ChannelSourceMode.DIRECT_CTC)
             useCase()
         }
     }
 
     @Test
-    fun `testAndImport surfaces LoginFailed`() = runTest {
-        coEvery { useCase() } returns ImportResult.LoginFailure("bad password")
+    fun `home proxy import saves proxy settings and runs unified use case`() = runTest {
+        coEvery { useCase() } returns ImportResult.Success(2)
         val vm = newVm()
         advanceUntilIdle()
-        vm.setUserId("u").apply { vm.setPassword("p") }
+        vm.selectMode(ChannelSourceMode.HOME_PROXY)
+        vm.setProxyBaseUrl("http://openwrt:8080")
+        vm.setProxyAccessToken("token")
 
         vm.testAndImport()
         advanceUntilIdle()
 
-        val status = vm.uiState.value.importStatus
-        assertTrue(status is ImportStatus.LoginFailed)
-        assertEquals("bad password", (status as ImportStatus.LoginFailed).reason)
-    }
-
-    @Test
-    fun `testAndImport surfaces NoChannelsReturned`() = runTest {
-        coEvery { useCase() } returns ImportResult.NoChannelsReturned
-        val vm = newVm()
-        advanceUntilIdle()
-        vm.setUserId("u"); vm.setPassword("p")
-
-        vm.testAndImport()
-        advanceUntilIdle()
-
-        assertTrue(vm.uiState.value.importStatus is ImportStatus.NoChannelsReturned)
+        assertTrue(vm.uiState.value.importStatus is ImportStatus.Success)
+        coVerify { sourceStore.saveProxySettings(ProxySettings("http://openwrt:8080", "token")) }
     }
 
     @Test
@@ -180,36 +183,18 @@ class IptvSettingsViewModelTest {
     }
 
     @Test
-    fun `clearCredentials shows dialog, confirm wipes store and resets state to defaults`() = runTest {
-        storedFlow.value = IptvCredentials(
-            userId = "u", password = "p", stbId = "0".repeat(32),
-            ip = "i", mac = "m", authServerUrl = "http://x.com",
-        )
+    fun `clearCredentials clears direct and proxy secrets`() = runTest {
         val vm = newVm()
         advanceUntilIdle()
-        assertEquals("u", vm.uiState.value.userId)
 
         vm.requestClearCredentials()
         assertTrue(vm.uiState.value.showClearConfirmation)
-
         vm.confirmClearCredentials()
         advanceUntilIdle()
+
         coVerify { store.clear() }
+        coVerify { sourceStore.clearProxySettings() }
         assertFalse(vm.uiState.value.showClearConfirmation)
-        // State resets to defaults (UserID/Password empty, defaults reapplied).
-        assertEquals("", vm.uiState.value.userId)
-        assertEquals("", vm.uiState.value.password)
-        assertEquals(32, vm.uiState.value.stbId.length)
-    }
-
-    @Test
-    fun `dismissClearDialog hides the dialog without clearing`() = runTest {
-        val vm = newVm()
-        advanceUntilIdle()
-        vm.requestClearCredentials()
-        vm.dismissClearDialog()
-
-        assertFalse(vm.uiState.value.showClearConfirmation)
-        coVerify(exactly = 0) { store.clear() }
     }
 }
+

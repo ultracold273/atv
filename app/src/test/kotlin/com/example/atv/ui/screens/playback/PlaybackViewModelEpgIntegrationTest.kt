@@ -2,11 +2,14 @@ package com.example.atv.ui.screens.playback
 
 import android.app.Application
 import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.domain.model.Program
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.ChannelSourceSettingsStore
 import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.domain.usecase.ResolveStreamUrlUseCase
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
@@ -53,6 +56,7 @@ class PlaybackViewModelEpgIntegrationTest {
     private lateinit var application: Application
     private lateinit var atvPlayer: AtvPlayer
     private lateinit var channelRepository: ChannelRepository
+    private lateinit var channelSourceSettingsStore: ChannelSourceSettingsStore
     private lateinit var preferencesRepository: PreferencesRepository
     private lateinit var switchChannelUseCase: SwitchChannelUseCase
     private lateinit var epgProvider: EpgProvider
@@ -80,6 +84,7 @@ class PlaybackViewModelEpgIntegrationTest {
         application = mockk(relaxed = true)
         atvPlayer = mockk(relaxed = true)
         channelRepository = mockk(relaxed = true)
+        channelSourceSettingsStore = mockk(relaxed = true)
         preferencesRepository = mockk(relaxed = true)
         switchChannelUseCase = mockk(relaxed = true)
         epgProvider = mockk(relaxed = true)
@@ -89,8 +94,9 @@ class PlaybackViewModelEpgIntegrationTest {
         every { epgProvider.isConfigured } returns isConfiguredFlow
         every { atvPlayer.playerState } returns playerStateFlow
         every { atvPlayer.initialize() } just runs
-        every { atvPlayer.playChannel(any()) } just runs
+        every { atvPlayer.playChannel(any(), any()) } just runs
         every { channelRepository.getAllChannels() } returns flowOf(listOf(sampleChannel))
+        every { channelSourceSettingsStore.observeMode() } returns flowOf(ChannelSourceMode.DIRECT_CTC)
         every { preferencesRepository.getLastChannelNumber() } returns flowOf(1)
         coEvery { preferencesRepository.setLastChannelNumber(any()) } just runs
     }
@@ -112,8 +118,10 @@ class PlaybackViewModelEpgIntegrationTest {
             application = application,
             atvPlayer = atvPlayer,
             channelRepository = channelRepository,
+            channelSourceSettingsStore = channelSourceSettingsStore,
             preferencesRepository = preferencesRepository,
             switchChannelUseCase = switchChannelUseCase,
+            resolveStreamUrl = ResolveStreamUrlUseCase(),
             epgProvider = epgProvider,
             clock = fixedClock,
         )

@@ -50,9 +50,8 @@ private const val MESSAGE_DISPLAY_MS = 3000L
 @Composable
 fun SettingsScreen(
     onBack: () -> Boolean,
-    onLoadNewPlaylist: () -> Unit,
+    onNavigateToChannelSource: () -> Unit,
     onManageChannels: () -> Unit,
-    onNavigateToIptvSetup: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -132,9 +131,9 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SettingsItem(
-                    title = stringResource(R.string.load_new_playlist),
-                    subtitle = stringResource(R.string.load_new_playlist_subtitle),
-                    onClick = onLoadNewPlaylist,
+                    title = stringResource(R.string.channel_source_title),
+                    subtitle = stringResource(R.string.channel_source_subtitle),
+                    onClick = onNavigateToChannelSource,
                     modifier = Modifier.focusRequester(focusRequester)
                 )
                 
@@ -149,17 +148,6 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.epg_setting_subtitle),
                     checked = uiState.epgEnabled,
                     onCheckedChange = { viewModel.setEpgEnabled(it) }
-                )
-
-                SettingsItem(
-                    title = stringResource(R.string.iptv_setup_title),
-                    subtitle = uiState.iptvSetupSubtitle.resolve(),
-                    onClick = onNavigateToIptvSetup
-                )
-
-                UdpxyProxyItem(
-                    value = uiState.udpxyProxy,
-                    onValueChange = { viewModel.setUdpxyProxy(it) }
                 )
 
                 SettingsItem(

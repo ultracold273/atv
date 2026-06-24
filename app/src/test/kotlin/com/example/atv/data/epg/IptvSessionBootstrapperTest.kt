@@ -1,9 +1,7 @@
 package com.example.atv.data.epg
 
-import com.example.atv.domain.model.IptvCredentials
-import com.example.atv.domain.repository.IptvCredentialsStore
-import com.example.atv.domain.usecase.ImportCtcChannelsUseCase
 import com.example.atv.domain.usecase.ImportResult
+import com.example.atv.domain.usecase.UnifiedImportChannelsUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -17,16 +15,12 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class IptvSessionBootstrapperTest {
 
-    private val creds = IptvCredentials(
-        userId = "u", password = "p", stbId = "0".repeat(32),
-        ip = "i", mac = "m", authServerUrl = "http://x.com",
-    )
-
     @Test
-    fun `start does nothing when no credentials stored`() = runTest {
-        val store: IptvCredentialsStore = mockk { coEvery { read() } returns null }
-        val useCase: ImportCtcChannelsUseCase = mockk()
-        val bootstrap = IptvSessionBootstrapper(store, useCase, this)
+    fun `start does nothing when active source cannot bootstrap`() = runTest {
+        val useCase: UnifiedImportChannelsUseCase = mockk {
+            coEvery { canBootstrap() } returns false
+        }
+        val bootstrap = IptvSessionBootstrapper(useCase, this)
 
         bootstrap.start()
         advanceUntilIdle()
@@ -36,25 +30,11 @@ class IptvSessionBootstrapperTest {
     }
 
     @Test
-    fun `start does nothing when credentials are incomplete`() = runTest {
-        val store: IptvCredentialsStore = mockk {
-            coEvery { read() } returns creds.copy(password = "")
-        }
-        val useCase: ImportCtcChannelsUseCase = mockk()
-        val bootstrap = IptvSessionBootstrapper(store, useCase, this)
-
-        bootstrap.start()
-        advanceUntilIdle()
-
-        coVerify(exactly = 0) { useCase() }
-    }
-
-    @Test
     fun `start runs use case and publishes Success result`() = runTest {
-        val store: IptvCredentialsStore = mockk { coEvery { read() } returns creds }
-        val useCase: ImportCtcChannelsUseCase = mockk()
+        val useCase: UnifiedImportChannelsUseCase = mockk()
+        coEvery { useCase.canBootstrap() } returns true
         coEvery { useCase() } returns ImportResult.Success(7)
-        val bootstrap = IptvSessionBootstrapper(store, useCase, this)
+        val bootstrap = IptvSessionBootstrapper(useCase, this)
 
         bootstrap.start()
         advanceUntilIdle()
@@ -67,10 +47,10 @@ class IptvSessionBootstrapperTest {
 
     @Test
     fun `start publishes failure result on LoginFailure`() = runTest {
-        val store: IptvCredentialsStore = mockk { coEvery { read() } returns creds }
-        val useCase: ImportCtcChannelsUseCase = mockk()
+        val useCase: UnifiedImportChannelsUseCase = mockk()
+        coEvery { useCase.canBootstrap() } returns true
         coEvery { useCase() } returns ImportResult.LoginFailure("bad")
-        val bootstrap = IptvSessionBootstrapper(store, useCase, this)
+        val bootstrap = IptvSessionBootstrapper(useCase, this)
 
         bootstrap.start()
         advanceUntilIdle()
@@ -82,10 +62,10 @@ class IptvSessionBootstrapperTest {
 
     @Test
     fun `calling start twice does not double-fire the use case`() = runTest {
-        val store: IptvCredentialsStore = mockk { coEvery { read() } returns creds }
-        val useCase: ImportCtcChannelsUseCase = mockk()
+        val useCase: UnifiedImportChannelsUseCase = mockk()
+        coEvery { useCase.canBootstrap() } returns true
         coEvery { useCase() } returns ImportResult.Success(1)
-        val bootstrap = IptvSessionBootstrapper(store, useCase, this)
+        val bootstrap = IptvSessionBootstrapper(useCase, this)
 
         bootstrap.start()
         advanceUntilIdle()
@@ -95,3 +75,4 @@ class IptvSessionBootstrapperTest {
         coVerify(exactly = 1) { useCase() }
     }
 }
+

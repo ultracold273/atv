@@ -15,7 +15,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.example.atv.domain.model.Channel
-import com.example.atv.domain.util.UdpxyUrlRewriter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -232,11 +231,10 @@ class AtvPlayer @Inject constructor(
     /**
      * Play a channel.
      */
-    fun playChannel(channel: Channel, udpxyProxy: String? = null) {
+    fun playChannel(channel: Channel, playableStreamUrl: String = channel.streamUrl) {
         Timber.d("Playing channel: ${channel.number} - ${channel.name}")
         currentChannel = channel
-        val resolved = UdpxyUrlRewriter.rewrite(channel.streamUrl, udpxyProxy)
-        resolvedStreamUrl = resolved
+        resolvedStreamUrl = playableStreamUrl
         _playerState.value = PlayerState.Loading(channel)
 
         val player = exoPlayer
@@ -249,7 +247,7 @@ class AtvPlayer @Inject constructor(
             stop()
             clearMediaItems()
 
-            val mediaItem = MediaItem.fromUri(resolved)
+            val mediaItem = MediaItem.fromUri(playableStreamUrl)
             setMediaItem(mediaItem)
             prepare()
             play()

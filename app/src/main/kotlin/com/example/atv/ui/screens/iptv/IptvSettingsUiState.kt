@@ -1,47 +1,49 @@
 package com.example.atv.ui.screens.iptv
 
+import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.domain.model.IptvCredentials
+import com.example.atv.domain.model.ProxySettings
 
-/**
- * State for the IPTV setup screen. Holds the six editable field values plus
- * import-flow status and confirmation-dialog visibility.
- */
 data class IptvSettingsUiState(
+    val sourceMode: ChannelSourceMode = ChannelSourceMode.DIRECT_CTC,
+    val playlistUrl: String = "",
     val userId: String = "",
     val password: String = "",
     val stbId: String = "",
     val ip: String = "",
     val mac: String = "",
     val authServerUrl: String = "",
+    val udpxyProxy: String = "",
+    val proxyBaseUrl: String = "",
+    val proxyAccessToken: String = "",
     val importStatus: ImportStatus = ImportStatus.Idle,
     val showClearConfirmation: Boolean = false,
 ) {
-    /** The current form values as an [IptvCredentials] record. */
     val asCredentials: IptvCredentials
         get() = IptvCredentials(userId, password, stbId, ip, mac, authServerUrl)
 
-    /** Form is valid and the "Test & import" button should be enabled. */
+    val asProxySettings: ProxySettings
+        get() = ProxySettings(proxyBaseUrl, proxyAccessToken)
+
     val isFormValid: Boolean
-        get() = asCredentials.isComplete && !importStatus.isInProgress
+        get() = !importStatus.isInProgress && when (sourceMode) {
+            ChannelSourceMode.M3U8 -> playlistUrl.isNotBlank()
+            ChannelSourceMode.DIRECT_CTC -> asCredentials.isComplete
+            ChannelSourceMode.HOME_PROXY -> asProxySettings.isComplete
+        }
 }
 
-/**
- * Real-time status of the "Test & import" flow. The UI maps each variant to a
- * localized string. `Idle` is the initial and post-completion state.
- */
 sealed class ImportStatus {
     object Idle : ImportStatus()
     object LoggingIn : ImportStatus()
     object FetchingChannels : ImportStatus()
+    object LoadingPlaylist : ImportStatus()
     data class Success(val importedCount: Int) : ImportStatus()
     data class LoginFailed(val reason: String) : ImportStatus()
     data class FetchFailed(val reason: String) : ImportStatus()
     object NoChannelsReturned : ImportStatus()
 
     val isInProgress: Boolean
-        get() = this is LoggingIn || this is FetchingChannels
-
-    val isTerminal: Boolean
-        get() = this is Success || this is LoginFailed ||
-            this is FetchFailed || this is NoChannelsReturned
+        get() = this is LoggingIn || this is FetchingChannels || this is LoadingPlaylist
 }
+

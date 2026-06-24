@@ -5,10 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.R
 import com.example.atv.domain.model.Channel
+import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.ChannelSourceSettingsStore
 import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.domain.usecase.ResolveStreamUrlUseCase
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayer
 import com.example.atv.player.PlayerState
@@ -40,8 +43,10 @@ class PlaybackViewModel @Inject constructor(
     private val application: Application,
     private val atvPlayer: AtvPlayer,
     private val channelRepository: ChannelRepository,
+    private val channelSourceSettingsStore: ChannelSourceSettingsStore,
     private val preferencesRepository: PreferencesRepository,
     private val switchChannelUseCase: SwitchChannelUseCase,
+    private val resolveStreamUrl: ResolveStreamUrlUseCase,
     private val epgProvider: EpgProvider,
     private val clock: Clock
 ) : ViewModel() {
@@ -96,6 +101,7 @@ class PlaybackViewModel @Inject constructor(
         observeEpgFlags()
         observePanelEpg()
         observeUdpxyProxy()
+        observeSourceMode()
     }
 
     // Latest udpxy proxy from preferences, passed to AtvPlayer.playChannel so
@@ -105,11 +111,20 @@ class PlaybackViewModel @Inject constructor(
     @Volatile
     private var udpxyProxy: String? = UserPreferences.DEFAULT_UDPXY_PROXY
 
+    @Volatile
+    private var sourceMode: ChannelSourceMode = ChannelSourceMode.DIRECT_CTC
+
     private fun observeUdpxyProxy() {
         viewModelScope.launch {
             preferencesRepository.getUserPreferences()
                 .map { it.udpxyProxy }
                 .collect { udpxyProxy = it }
+        }
+    }
+
+    private fun observeSourceMode() {
+        viewModelScope.launch {
+            channelSourceSettingsStore.observeMode().collect { sourceMode = it }
         }
     }
     
@@ -335,7 +350,8 @@ class PlaybackViewModel @Inject constructor(
         val index = _uiState.value.channels.indexOfFirst { it.number == channel.number }
         _uiState.update { it.copy(currentChannelIndex = index.coerceAtLeast(0)) }
 
-        atvPlayer.playChannel(channel, udpxyProxy)
+        val playableUrl = resolveStreamUrl(channel.streamUrl, sourceMode, udpxyProxy)
+        atvPlayer.playChannel(channel, playableUrl)
         showChannelInfo()
         loadBannerEpgFor(channel)
 
