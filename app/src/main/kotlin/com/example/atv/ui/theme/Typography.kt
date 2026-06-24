@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName") // File is named by concept (Typography); declares AtvTypography
+
 package com.example.atv.ui.theme
 
 import androidx.compose.ui.text.TextStyle

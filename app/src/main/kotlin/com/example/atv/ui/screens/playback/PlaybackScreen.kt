@@ -199,7 +199,6 @@ fun PlaybackScreen(
             maxChannels = uiState.channelCount,
             onDigitPressed = { viewModel.appendNumberPadDigit(it) },
             onBackspace = { viewModel.backspaceNumberPadDigit() },
-            onClear = { viewModel.clearNumberPadInput() },
             onConfirm = { viewModel.confirmNumberPadInput() },
             onDismiss = { viewModel.hideNumberPad() },
             onUserInteraction = { viewModel.resetNumberPadAutoHide() }

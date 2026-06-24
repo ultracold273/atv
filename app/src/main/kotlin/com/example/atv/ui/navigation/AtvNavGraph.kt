@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName") // Groups the Routes table with the AtvNavGraph composable
+
 package com.example.atv.ui.navigation
 
 import androidx.compose.foundation.layout.Box

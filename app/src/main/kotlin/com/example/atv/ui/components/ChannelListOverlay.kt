@@ -47,6 +47,9 @@ import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import kotlinx.coroutines.delay
 
+private const val FOCUS_REQUEST_DELAY_MS = 100L
+private const val CHANNEL_NUMBER_WIDTH = 3
+
 /**
  * Channel list overlay. When `epgEnabled && epgPanelContent != null`, the overlay
  * renders side-by-side: a 350.dp channel column on the left and the EPG panel on
@@ -163,7 +166,7 @@ private fun ChannelColumn(
 
     LaunchedEffect(visible) {
         if (visible) {
-            delay(100)
+            delay(FOCUS_REQUEST_DELAY_MS)
             currentChannelFocusRequester.requestFocus()
         }
     }
@@ -270,7 +273,7 @@ private fun ChannelListItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = channel.number.toString().padStart(3, ' '),
+                text = channel.number.toString().padStart(CHANNEL_NUMBER_WIDTH, ' '),
                 style = AtvTypography.titleMedium,
                 color = if (isCurrentlyPlaying) AtvColors.Primary else AtvColors.OnSurfaceVariant
             )

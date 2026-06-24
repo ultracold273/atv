@@ -1,6 +1,5 @@
 package com.example.atv.data.epg
 
-import com.example.atv.domain.model.IptvCredentials
 import com.example.atv.domain.model.Program
 import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.IptvCredentialsStore
@@ -106,14 +105,13 @@ class CtcEpgProvider @Inject constructor(
         val mutex = keyMutex(key)
         mutex.withLock {
             cacheGetFresh(key)?.let { return@withLock Result.success(it) }
-            try {
+            runCatching {
                 val programs = ensureSession()
                     .let { sess -> fetchWithRetry(sess, channelCode, dateOffset) }
                 cachePut(key, programs)
-                Result.success(programs)
-            } catch (e: Throwable) {
+                programs
+            }.onFailure { e ->
                 Timber.d(e, "CTC fetchPrograms failed for %s/%d", channelCode, dateOffset)
-                Result.failure(e)
             }
             // NOTE: the keyMutex is intentionally NOT removed from the map after use.
             // Removing it would race with concurrent callers that already obtained the
@@ -227,7 +225,7 @@ class CtcEpgProvider @Inject constructor(
     @Synchronized
     private fun cacheGetFresh(key: CacheKey): List<Program>? {
         val entry = cache[key] ?: return null
-        val ageNanos = clock.millis() * 1_000_000L - entry.storedAtNanos
+        val ageNanos = clock.millis() * NANOS_PER_MILLI - entry.storedAtNanos
         if (ageNanos > TTL_NANOS) {
             cache.remove(key)
             return null
@@ -237,7 +235,7 @@ class CtcEpgProvider @Inject constructor(
 
     @Synchronized
     private fun cachePut(key: CacheKey, programs: List<Program>) {
-        cache[key] = CacheEntry(programs, clock.millis() * 1_000_000L)
+        cache[key] = CacheEntry(programs, clock.millis() * NANOS_PER_MILLI)
     }
 
     private fun keyMutex(key: CacheKey): Mutex {
@@ -249,15 +247,19 @@ class CtcEpgProvider @Inject constructor(
     private companion object {
         const val DEFAULT_MAX_ENTRIES = 100
         const val RETRY_DELAY_MS = 1_500L
-        val TTL_NANOS = 60L * 1_000_000_000L
+        const val TTL_NANOS = 60L * 1_000_000_000L
+        const val NANOS_PER_MILLI = 1_000_000L
     }
 
     private class RetryableHttpException(val code: Int) : IOException("HTTP $code")
     private class SessionExpiredException(message: String) : IOException(message)
 }
 
+private const val LRU_INITIAL_CAPACITY = 16
+private const val LRU_LOAD_FACTOR = 0.75f
+
 /** Tiny LRU on top of LinkedHashMap (access-order). Synchronized externally by caller. */
 internal class LinkedLruCache<K, V>(private val cap: Int) :
-    LinkedHashMap<K, V>(16, 0.75f, true) {
+    LinkedHashMap<K, V>(LRU_INITIAL_CAPACITY, LRU_LOAD_FACTOR, true) {
     override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean = size > cap
 }

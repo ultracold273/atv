@@ -39,6 +39,9 @@ abstract class EpgModule {
 @InstallIn(SingletonComponent::class)
 object EpgNetworkModule {
 
+    private const val CONNECT_TIMEOUT_SECONDS = 10L
+    private const val READ_TIMEOUT_SECONDS = 15L
+
     /**
      * OkHttp client for the EPG provider stack.
      *
@@ -61,7 +64,7 @@ object EpgNetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 }

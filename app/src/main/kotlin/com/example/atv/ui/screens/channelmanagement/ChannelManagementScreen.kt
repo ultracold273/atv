@@ -43,6 +43,9 @@ import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
 
+private const val CHANNEL_NUMBER_WIDTH = 3
+private const val URL_PREVIEW_MAX_LENGTH = 50
+
 /**
  * Screen for managing channels (add, edit, delete).
  */
@@ -230,7 +233,7 @@ private fun ChannelItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = channel.number.toString().padStart(3, ' '),
+                text = channel.number.toString().padStart(CHANNEL_NUMBER_WIDTH, ' '),
                 style = AtvTypography.titleMedium,
                 color = AtvColors.Primary
             )
@@ -244,7 +247,8 @@ private fun ChannelItem(
                     color = AtvColors.OnSurface
                 )
                 Text(
-                    text = channel.streamUrl.take(50) + if (channel.streamUrl.length > 50) "..." else "",
+                    text = channel.streamUrl.take(URL_PREVIEW_MAX_LENGTH) +
+                        if (channel.streamUrl.length > URL_PREVIEW_MAX_LENGTH) "..." else "",
                     style = AtvTypography.bodyMedium,
                     color = AtvColors.OnSurfaceVariant
                 )

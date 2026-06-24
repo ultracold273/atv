@@ -67,7 +67,7 @@ object UrlValidator {
                     false
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
             Timber.e(e, "URL validation failed: malformed URL '$url'")
             false
         }
@@ -103,7 +103,7 @@ object UrlValidator {
                 }
                 else -> Result.success(uri)
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalArgumentException) {
             Result.failure(IllegalArgumentException("Malformed URL: $url", e))
         }
     }
@@ -115,10 +115,6 @@ object UrlValidator {
      * @return true if URL uses https scheme
      */
     fun isSecure(url: String): Boolean {
-        return try {
-            url.toUri().scheme?.lowercase() == "https"
-        } catch (e: Exception) {
-            false
-        }
+        return url.toUri().scheme?.lowercase() == "https"
     }
 }

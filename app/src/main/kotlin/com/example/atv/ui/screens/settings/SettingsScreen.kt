@@ -42,6 +42,8 @@ import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
 
+private const val MESSAGE_DISPLAY_MS = 3000L
+
 /**
  * Settings screen for managing app preferences and playlists.
  */
@@ -114,7 +116,11 @@ fun SettingsScreen(
                 )
                 StatItem(
                     label = stringResource(R.string.status),
-                    value = if (uiState.channelCount > 0) stringResource(R.string.status_ready) else stringResource(R.string.status_no_playlist)
+                    value = if (uiState.channelCount > 0) {
+                        stringResource(R.string.status_ready)
+                    } else {
+                        stringResource(R.string.status_no_playlist)
+                    }
                 )
             }
             
@@ -176,7 +182,7 @@ fun SettingsScreen(
         // Message snack bar
         uiState.message?.let { message ->
             LaunchedEffect(message) {
-                kotlinx.coroutines.delay(3000)
+                kotlinx.coroutines.delay(MESSAGE_DISPLAY_MS)
                 viewModel.clearMessage()
             }
             

@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
@@ -36,6 +37,7 @@ class LoadPlaylistUseCase @Inject constructor(
      * @param uri The content URI or HTTP URL of the M3U8 file
      * @return Result containing the list of channels or an error
      */
+    @Suppress("TooGenericExceptionCaught") // Boundary: any load/parse failure is wrapped into Result.failure
     suspend operator fun invoke(uri: Uri): Result<List<Channel>> {
         return try {
             Timber.d("Loading playlist from: $uri")
@@ -102,7 +104,7 @@ class LoadPlaylistUseCase @Inject constructor(
             BufferedReader(InputStreamReader(inputStream)).use { reader ->
                 reader.readText()
             }
-        } ?: throw Exception("Could not open file")
+        } ?: throw IOException("Could not open file")
     }
     
     /**
@@ -120,7 +122,7 @@ class LoadPlaylistUseCase @Inject constructor(
             
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                throw Exception("HTTP error: $responseCode ${connection.responseMessage}")
+                throw IOException("HTTP error: $responseCode ${connection.responseMessage}")
             }
             
             connection.inputStream.bufferedReader().use { it.readText() }

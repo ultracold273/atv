@@ -21,6 +21,7 @@ import androidx.compose.ui.input.key.type
  * Callbacks return Boolean to indicate if the event was consumed.
  * Return true to consume the event, false to let it propagate.
  */
+@Suppress("LongParameterList", "CyclomaticComplexMethod") // D-pad dispatch: one optional callback + branch per key
 fun Modifier.handleDPadKeyEvents(
     onUp: (() -> Boolean)? = null,
     onDown: (() -> Boolean)? = null,
