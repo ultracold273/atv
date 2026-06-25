@@ -28,16 +28,22 @@ class UnifiedImportChannelsUseCase @Inject constructor(
 
     private suspend fun importFromProxy(): ImportResult {
         val settings = sourceSettingsStore.readProxySettings()
-            ?: return ImportResult.LoginFailure("proxy settings missing")
-        if (!settings.isComplete) {
-            return ImportResult.LoginFailure("proxy settings incomplete")
+        return when {
+            settings == null -> ImportResult.LoginFailure("proxy settings missing")
+            !settings.isComplete -> ImportResult.LoginFailure("proxy settings incomplete")
+            else -> proxyClient.fetchChannels(settings).fold(
+                onSuccess = { channels ->
+                    if (channels.isEmpty()) {
+                        ImportResult.NoChannelsReturned
+                    } else {
+                        channelRepository.savePlaylistChannels(channels)
+                        ImportResult.Success(channels.size)
+                    }
+                },
+                onFailure = { t ->
+                    ImportResult.FetchFailure(t.message ?: t::class.simpleName.orEmpty())
+                },
+            )
         }
-        val channels = proxyClient.fetchChannels(settings).getOrElse { t ->
-            return ImportResult.FetchFailure(t.message ?: t::class.simpleName.orEmpty())
-        }
-        if (channels.isEmpty()) return ImportResult.NoChannelsReturned
-        channelRepository.savePlaylistChannels(channels)
-        return ImportResult.Success(channels.size)
     }
 }
-
