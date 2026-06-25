@@ -28,6 +28,7 @@ import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
+@Suppress("LongParameterList", "TooManyFunctions")
 class IptvSettingsViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val credentialsStore: IptvCredentialsStore,
@@ -122,18 +123,19 @@ class IptvSettingsViewModel @Inject constructor(
                 internalFile.writeText(assetContent)
                 loadPlaylistUseCase(internalFile.toUri()).fold(
                     onSuccess = { channels ->
-                        _uiState.update {
-                            it.copy(
-                                playlistUrl = internalFile.toUri().toString(),
+                        val importedUri = internalFile.toUri().toString()
+                        _uiState.update { state ->
+                            state.copy(
+                                playlistUrl = importedUri,
                                 importStatus = ImportStatus.Success(channels.size),
                             )
                         }
                     },
-                    onFailure = { t -> _uiState.update { it.copy(importStatus = ImportStatus.FetchFailed(t.message.orEmpty())) } },
+                    onFailure = { t -> setFetchFailed(t.message.orEmpty()) },
                 )
-            } catch (e: Exception) {
+            } catch (e: java.io.IOException) {
                 Timber.e(e, "Failed to load demo playlist")
-                _uiState.update { it.copy(importStatus = ImportStatus.FetchFailed(e.message.orEmpty())) }
+                setFetchFailed(e.message.orEmpty())
             } finally {
                 importMutex.unlock()
             }
@@ -151,9 +153,15 @@ class IptvSettingsViewModel @Inject constructor(
         preferencesRepository.setUdpxyProxy(_uiState.value.udpxyProxy)
         _uiState.update { it.copy(importStatus = ImportStatus.LoadingPlaylist) }
         loadPlaylistUseCase(url.toUri()).fold(
-            onSuccess = { channels -> _uiState.update { it.copy(importStatus = ImportStatus.Success(channels.size)) } },
-            onFailure = { t -> _uiState.update { it.copy(importStatus = ImportStatus.FetchFailed(t.message.orEmpty())) } },
+            onSuccess = { channels ->
+                _uiState.update { it.copy(importStatus = ImportStatus.Success(channels.size)) }
+            },
+            onFailure = { t -> setFetchFailed(t.message.orEmpty()) },
         )
+    }
+
+    private fun setFetchFailed(message: String) {
+        _uiState.update { it.copy(importStatus = ImportStatus.FetchFailed(message)) }
     }
 
     private suspend fun importDirectCtc() {
@@ -227,4 +235,3 @@ class IptvSettingsViewModel @Inject constructor(
         ImportResult.NoChannelsReturned -> ImportStatus.NoChannelsReturned
     }
 }
-

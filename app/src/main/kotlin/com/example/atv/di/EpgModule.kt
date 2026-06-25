@@ -1,8 +1,8 @@
 package com.example.atv.di
 
-import com.example.atv.data.epg.CtcEpgProvider
 import com.example.atv.data.epg.DefaultDeviceDefaultsProvider
 import com.example.atv.data.epg.DeviceDefaultsProvider
+import com.example.atv.data.epg.ModeAwareEpgProvider
 import com.example.atv.domain.repository.EpgProvider
 import dagger.Binds
 import dagger.Module
@@ -26,7 +26,7 @@ abstract class EpgModule {
 
     @Binds
     @Singleton
-    abstract fun bindEpgProvider(impl: CtcEpgProvider): EpgProvider
+    abstract fun bindEpgProvider(impl: ModeAwareEpgProvider): EpgProvider
 
     @Binds
     @Singleton

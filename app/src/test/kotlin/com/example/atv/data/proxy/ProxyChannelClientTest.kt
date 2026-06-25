@@ -57,6 +57,42 @@ class ProxyChannelClientTest {
     }
 
     @Test
+    fun `fetchPrograms parses EPG response and sends bearer token`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """
+                {
+                  "data": [
+                    {
+                      "code": "p1",
+                      "name": "Morning News",
+                      "start": "2026-06-07T08:00:00Z",
+                      "end": "2026-06-07T09:00:00Z",
+                      "isLive": true,
+                      "isReplayable": false
+                    }
+                  ],
+                  "cache": {"stale": false, "cachedAt": 1780833600, "ttlSeconds": 300}
+                }
+                """.trimIndent(),
+            ),
+        )
+
+        val result = client.fetchPrograms(settings(), "ch 1", 0)
+
+        assertTrue(result.isSuccess)
+        val program = result.getOrThrow().single()
+        assertEquals("p1", program.code)
+        assertEquals("Morning News", program.name)
+        val request = server.takeRequest()
+        assertEquals("Bearer local-token", request.getHeader("Authorization"))
+        assertTrue(request.path.orEmpty().contains("/api/v1/epg/day"))
+        assertTrue(request.requestUrl?.queryParameter("channelCode") == "ch 1")
+        assertTrue(request.requestUrl?.queryParameter("dateOffset") == "0")
+        assertTrue(request.path.orEmpty().contains("dateOffset=0"))
+    }
+
+    @Test
     fun `fetchChannels maps unauthorized to failure`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("{}"))
 
@@ -64,6 +100,20 @@ class ProxyChannelClientTest {
 
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("authorization"))
+    }
+
+    @Test
+    fun `fetchPrograms maps structured proxy error`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(503).setBody(
+                """{"error":{"code":"backend_unavailable","message":"Backend down"}}""",
+            ),
+        )
+
+        val result = client.fetchPrograms(settings(), "ch1", 0)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("backend_unavailable"))
     }
 
     @Test
@@ -85,4 +135,3 @@ class ProxyChannelClientTest {
         accessToken = "local-token",
     )
 }
-
