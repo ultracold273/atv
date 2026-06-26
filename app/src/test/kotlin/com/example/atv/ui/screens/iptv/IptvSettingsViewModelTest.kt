@@ -119,7 +119,7 @@ class IptvSettingsViewModelTest {
     }
 
     @Test
-    fun `selectMode persists active mode`() = runTest {
+    fun `selectMode previews mode without persisting active mode`() = runTest {
         val vm = newVm()
         advanceUntilIdle()
 
@@ -127,12 +127,13 @@ class IptvSettingsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(ChannelSourceMode.HOME_PROXY, vm.uiState.value.sourceMode)
-        coVerify { sourceStore.saveMode(ChannelSourceMode.HOME_PROXY) }
+        assertEquals(ChannelSourceMode.DIRECT_CTC, vm.uiState.value.activeSourceMode)
+        coVerify(exactly = 0) { sourceStore.saveMode(any()) }
     }
 
     @Test
     fun `direct ctc import saves credentials and runs unified use case`() = runTest {
-        coEvery { useCase() } returns ImportResult.Success(42)
+        coEvery { useCase(ChannelSourceMode.DIRECT_CTC) } returns ImportResult.Success(42)
         val vm = newVm()
         advanceUntilIdle()
         vm.setUserId("1234567890123")
@@ -144,16 +145,17 @@ class IptvSettingsViewModelTest {
         val status = vm.uiState.value.importStatus
         assertTrue(status is ImportStatus.Success)
         assertEquals(42, (status as ImportStatus.Success).importedCount)
+        assertEquals(ChannelSourceMode.DIRECT_CTC, vm.uiState.value.activeSourceMode)
         coVerifyOrder {
             store.save(any())
+            useCase(ChannelSourceMode.DIRECT_CTC)
             sourceStore.saveMode(ChannelSourceMode.DIRECT_CTC)
-            useCase()
         }
     }
 
     @Test
     fun `home proxy import saves proxy settings and runs unified use case`() = runTest {
-        coEvery { useCase() } returns ImportResult.Success(2)
+        coEvery { useCase(ChannelSourceMode.HOME_PROXY) } returns ImportResult.Success(2)
         val vm = newVm()
         advanceUntilIdle()
         vm.selectMode(ChannelSourceMode.HOME_PROXY)
@@ -164,22 +166,25 @@ class IptvSettingsViewModelTest {
         advanceUntilIdle()
 
         assertTrue(vm.uiState.value.importStatus is ImportStatus.Success)
+        assertEquals(ChannelSourceMode.HOME_PROXY, vm.uiState.value.activeSourceMode)
         coVerify { sourceStore.saveProxySettings(ProxySettings("http://openwrt:8080", "token")) }
+        coVerify { sourceStore.saveMode(ChannelSourceMode.HOME_PROXY) }
     }
 
     @Test
     fun `concurrent testAndImport taps coalesce to one use-case invocation`() = runTest {
-        coEvery { useCase() } returns ImportResult.Success(1)
+        coEvery { useCase(ChannelSourceMode.DIRECT_CTC) } returns ImportResult.Success(1)
         val vm = newVm()
         advanceUntilIdle()
-        vm.setUserId("u"); vm.setPassword("p")
+        vm.setUserId("1234567890123")
+        vm.setPassword("000000")
 
         vm.testAndImport()
         vm.testAndImport()
         vm.testAndImport()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { useCase() }
+        coVerify(exactly = 1) { useCase(ChannelSourceMode.DIRECT_CTC) }
     }
 
     @Test
@@ -197,4 +202,3 @@ class IptvSettingsViewModelTest {
         assertFalse(vm.uiState.value.showClearConfirmation)
     }
 }
-

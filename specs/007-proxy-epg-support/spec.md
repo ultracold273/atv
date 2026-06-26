@@ -38,6 +38,8 @@ Acceptance criteria:
 
 Request:
 
+`dateOffset` follows the CTC backend convention shared by Direct CTC and Home Proxy modes: `-1` means tomorrow, `0` means today, and `1` means yesterday.
+
 ```http
 GET /api/v1/epg/day?channelCode={provider-channel-code}&dateOffset={-1|0|1}
 Authorization: Bearer {local-client-token}

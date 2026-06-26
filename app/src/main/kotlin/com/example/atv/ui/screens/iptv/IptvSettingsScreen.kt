@@ -23,9 +23,14 @@ import androidx.compose.material3.Text as M3Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -84,6 +89,7 @@ fun IptvSettingsScreen(
 
             SourceModeSelector(
                 selected = uiState.sourceMode,
+                active = uiState.activeSourceMode,
                 onSelected = viewModel::selectMode,
             )
 
@@ -130,8 +136,21 @@ fun IptvSettingsScreen(
 @Composable
 private fun SourceModeSelector(
     selected: ChannelSourceMode,
+    active: ChannelSourceMode,
     onSelected: (ChannelSourceMode) -> Unit,
 ) {
+    val m3u8FocusRequester = remember { FocusRequester() }
+    val directFocusRequester = remember { FocusRequester() }
+    val proxyFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(active) {
+        when (active) {
+            ChannelSourceMode.M3U8 -> m3u8FocusRequester
+            ChannelSourceMode.DIRECT_CTC -> directFocusRequester
+            ChannelSourceMode.HOME_PROXY -> proxyFocusRequester
+        }.requestFocus()
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -139,18 +158,24 @@ private fun SourceModeSelector(
         SourceModeButton(
             label = stringResource(R.string.channel_source_m3u8),
             selected = selected == ChannelSourceMode.M3U8,
+            active = active == ChannelSourceMode.M3U8,
+            focusRequester = m3u8FocusRequester,
             onClick = { onSelected(ChannelSourceMode.M3U8) },
             modifier = Modifier.weight(1f),
         )
         SourceModeButton(
             label = stringResource(R.string.channel_source_direct_ctc),
             selected = selected == ChannelSourceMode.DIRECT_CTC,
+            active = active == ChannelSourceMode.DIRECT_CTC,
+            focusRequester = directFocusRequester,
             onClick = { onSelected(ChannelSourceMode.DIRECT_CTC) },
             modifier = Modifier.weight(1f),
         )
         SourceModeButton(
             label = stringResource(R.string.channel_source_home_proxy),
             selected = selected == ChannelSourceMode.HOME_PROXY,
+            active = active == ChannelSourceMode.HOME_PROXY,
+            focusRequester = proxyFocusRequester,
             onClick = { onSelected(ChannelSourceMode.HOME_PROXY) },
             modifier = Modifier.weight(1f),
         )
@@ -161,29 +186,55 @@ private fun SourceModeSelector(
 private fun SourceModeButton(
     label: String,
     selected: Boolean,
+    active: Boolean,
+    focusRequester: FocusRequester,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val baseColor = when {
+        active -> AtvColors.Secondary
+        selected -> AtvColors.Primary
+        else -> AtvColors.Surface
+    }
+    val textColor = when {
+        active -> AtvColors.Secondary
+        selected -> AtvColors.Primary
+        else -> AtvColors.OnSurface
+    }
     Surface(
         onClick = onClick,
-        modifier = modifier.height(48.dp),
+        modifier = modifier
+            .height(52.dp)
+            .focusRequester(focusRequester)
+            .onFocusChanged { state -> if (state.isFocused) onClick() },
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) AtvColors.Primary.copy(alpha = 0.25f) else AtvColors.Surface,
-            focusedContainerColor = AtvColors.Primary.copy(alpha = 0.35f),
+            containerColor = when {
+                active -> AtvColors.Secondary.copy(alpha = 0.22f)
+                selected -> AtvColors.Primary.copy(alpha = 0.18f)
+                else -> AtvColors.Surface
+            },
+            focusedContainerColor = baseColor.copy(alpha = if (active) 0.32f else 0.26f),
         ),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(
-                border = BorderStroke(width = 2.dp, color = AtvColors.Primary),
+                border = BorderStroke(width = 2.dp, color = if (active) AtvColors.Secondary else AtvColors.Primary),
                 shape = RoundedCornerShape(8.dp),
             ),
         ),
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 text = label,
-                style = AtvTypography.bodyMedium,
-                color = if (selected) AtvColors.Primary else AtvColors.OnSurface,
+                style = AtvTypography.labelLarge,
+                color = textColor,
+                textAlign = TextAlign.Center,
             )
         }
     }

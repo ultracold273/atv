@@ -6,6 +6,7 @@ import com.example.atv.domain.model.ProxySettings
 
 data class IptvSettingsUiState(
     val sourceMode: ChannelSourceMode = ChannelSourceMode.DIRECT_CTC,
+    val activeSourceMode: ChannelSourceMode = ChannelSourceMode.DIRECT_CTC,
     val playlistUrl: String = "",
     val userId: String = "",
     val password: String = "",
@@ -46,4 +47,3 @@ sealed class ImportStatus {
     val isInProgress: Boolean
         get() = this is LoggingIn || this is FetchingChannels || this is LoadingPlaylist
 }
-

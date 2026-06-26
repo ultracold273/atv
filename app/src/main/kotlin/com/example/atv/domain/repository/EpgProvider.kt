@@ -18,7 +18,7 @@ interface EpgProvider {
      * Fetch the program list for a channel on a given date offset.
      *
      * @param channelCode opaque per-provider channel identifier
-     * @param dateOffset -1 = yesterday, 0 = today, +1 = tomorrow
+     * @param dateOffset CTC date index: -1 = tomorrow, 0 = today, +1 = yesterday
      */
     suspend fun fetchPrograms(channelCode: String, dateOffset: Int): Result<List<Program>>
 }

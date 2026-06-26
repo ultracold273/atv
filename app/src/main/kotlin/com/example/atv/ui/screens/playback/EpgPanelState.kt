@@ -8,7 +8,7 @@ import com.example.atv.domain.model.Program
  *
  * @param focusedChannel the channel currently focused in the channel column,
  *   null when the overlay is closed or no channel has focus yet.
- * @param dateOffset selected date tab: -1 = yesterday, 0 = today, +1 = tomorrow.
+ * @param dateOffset selected CTC date index: -1 = tomorrow, 0 = today, +1 = yesterday.
  *   Always reset to 0 when the overlay reopens (FR-009).
  * @param programs schedule for (focusedChannel, dateOffset). Empty until a fetch resolves.
  * @param isLoading true while a fetch is in flight (after the 250ms debounce).

@@ -56,6 +56,7 @@ class IptvSettingsViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     sourceMode = mode,
+                    activeSourceMode = mode,
                     playlistUrl = prefs.playlistFilePath.orEmpty(),
                     udpxyProxy = prefs.udpxyProxy.orEmpty(),
                     proxyBaseUrl = proxy?.proxyBaseUrl.orEmpty(),
@@ -83,7 +84,6 @@ class IptvSettingsViewModel @Inject constructor(
 
     fun selectMode(mode: ChannelSourceMode) {
         _uiState.update { it.copy(sourceMode = mode, importStatus = ImportStatus.Idle) }
-        viewModelScope.launch { sourceSettingsStore.saveMode(mode) }
     }
 
     fun setPlaylistUrl(v: String) = _uiState.update { it.copy(playlistUrl = v) }
@@ -124,9 +124,11 @@ class IptvSettingsViewModel @Inject constructor(
                 loadPlaylistUseCase(internalFile.toUri()).fold(
                     onSuccess = { channels ->
                         val importedUri = internalFile.toUri().toString()
+                        sourceSettingsStore.saveMode(ChannelSourceMode.M3U8)
                         _uiState.update { state ->
                             state.copy(
                                 playlistUrl = importedUri,
+                                activeSourceMode = ChannelSourceMode.M3U8,
                                 importStatus = ImportStatus.Success(channels.size),
                             )
                         }
@@ -154,7 +156,13 @@ class IptvSettingsViewModel @Inject constructor(
         _uiState.update { it.copy(importStatus = ImportStatus.LoadingPlaylist) }
         loadPlaylistUseCase(url.toUri()).fold(
             onSuccess = { channels ->
-                _uiState.update { it.copy(importStatus = ImportStatus.Success(channels.size)) }
+                sourceSettingsStore.saveMode(ChannelSourceMode.M3U8)
+                _uiState.update {
+                    it.copy(
+                        activeSourceMode = ChannelSourceMode.M3U8,
+                        importStatus = ImportStatus.Success(channels.size),
+                    )
+                }
             },
             onFailure = { t -> setFetchFailed(t.message.orEmpty()) },
         )
@@ -171,10 +179,18 @@ class IptvSettingsViewModel @Inject constructor(
             return
         }
         credentialsStore.save(creds)
-        sourceSettingsStore.saveMode(ChannelSourceMode.DIRECT_CTC)
         preferencesRepository.setUdpxyProxy(_uiState.value.udpxyProxy)
         _uiState.update { it.copy(importStatus = ImportStatus.LoggingIn) }
-        _uiState.update { it.copy(importStatus = importChannelsUseCase().toStatus()) }
+        val status = importChannelsUseCase(ChannelSourceMode.DIRECT_CTC).toStatus()
+        if (status is ImportStatus.Success) {
+            sourceSettingsStore.saveMode(ChannelSourceMode.DIRECT_CTC)
+        }
+        _uiState.update { state ->
+            state.copy(
+                activeSourceMode = state.activeModeAfterSuccess(status, ChannelSourceMode.DIRECT_CTC),
+                importStatus = status,
+            )
+        }
     }
 
     private suspend fun importHomeProxy() {
@@ -184,10 +200,23 @@ class IptvSettingsViewModel @Inject constructor(
             return
         }
         sourceSettingsStore.saveProxySettings(settings)
-        sourceSettingsStore.saveMode(ChannelSourceMode.HOME_PROXY)
         _uiState.update { it.copy(importStatus = ImportStatus.FetchingChannels) }
-        _uiState.update { it.copy(importStatus = importChannelsUseCase().toStatus()) }
+        val status = importChannelsUseCase(ChannelSourceMode.HOME_PROXY).toStatus()
+        if (status is ImportStatus.Success) {
+            sourceSettingsStore.saveMode(ChannelSourceMode.HOME_PROXY)
+        }
+        _uiState.update { state ->
+            state.copy(
+                activeSourceMode = state.activeModeAfterSuccess(status, ChannelSourceMode.HOME_PROXY),
+                importStatus = status,
+            )
+        }
     }
+
+    private fun IptvSettingsUiState.activeModeAfterSuccess(
+        status: ImportStatus,
+        mode: ChannelSourceMode,
+    ): ChannelSourceMode = if (status is ImportStatus.Success) mode else activeSourceMode
 
     fun requestClearCredentials() {
         _uiState.update { it.copy(showClearConfirmation = true) }
