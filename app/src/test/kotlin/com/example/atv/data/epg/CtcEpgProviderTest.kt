@@ -95,7 +95,7 @@ class CtcEpgProviderTest {
     }
 
     @Test
-    fun `fetchPrograms passes channelcode and dateindex query params`() = runTest {
+    fun `fetchPrograms passes CTC dateindex query params`() = runTest {
         server.enqueue(MockResponse().setBody(sampleProgramsJson))
         coEvery { authClient.login(any()) } returns successLogin()
         val provider = CtcEpgProvider(authClient, http, credentialsStore, Clock.systemUTC())

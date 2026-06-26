@@ -306,7 +306,7 @@ class PlaybackViewModelEpgTest {
 
         val chA = TestFixtures.SAMPLE_CHANNEL.copy(number = 1)
 
-        // Focus channel A on Tomorrow, letting the panel flow write the offset into uiState.
+        // Focus channel A on Yesterday, letting the panel flow write the offset into uiState.
         viewModel.onChannelFocusedWithCode(chA, "A")
         viewModel.setEpgDateOffset(1)
         advanceTimeBy(300)

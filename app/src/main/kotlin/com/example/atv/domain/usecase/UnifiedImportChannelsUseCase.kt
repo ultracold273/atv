@@ -20,6 +20,12 @@ class UnifiedImportChannelsUseCase @Inject constructor(
         ChannelSourceMode.HOME_PROXY -> importFromProxy()
     }
 
+    suspend operator fun invoke(mode: ChannelSourceMode): ImportResult = when (mode) {
+        ChannelSourceMode.M3U8 -> ImportResult.LoginFailure("M3U8 imports are manual")
+        ChannelSourceMode.DIRECT_CTC -> directImport()
+        ChannelSourceMode.HOME_PROXY -> importFromProxy()
+    }
+
     suspend fun canBootstrap(): Boolean = when (sourceSettingsStore.readMode()) {
         ChannelSourceMode.M3U8 -> false
         ChannelSourceMode.DIRECT_CTC -> credentialsStore.read()?.isComplete == true

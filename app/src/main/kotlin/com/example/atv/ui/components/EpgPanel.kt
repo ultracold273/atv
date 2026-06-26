@@ -59,9 +59,10 @@ private val rowTimeFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("HH:mm").withZone(displayZone)
 
 private const val DATE_TAB_COUNT = 3
-private const val TODAY_TAB_INDEX = 1 // tabs map to offsets [-1, 0, +1]
+private const val TODAY_TAB_INDEX = 1 // visual tabs are [Yesterday, Today, Tomorrow]
 private const val MIN_DATE_OFFSET = -1
 private const val MAX_DATE_OFFSET = 1
+private val DATE_TAB_OFFSETS = listOf(1, 0, -1)
 
 /**
  * Side-by-side EPG panel. Renders the schedule for `state.focusedChannel` on the
@@ -155,7 +156,7 @@ fun EpgPanel(
             // Only fall back to the tab once the fetch has settled — during loading the
             // list may still appear, so don't yank focus to the tab prematurely.
             !state.isLoading -> {
-                runCatching { tabRequesters[state.dateOffset - MIN_DATE_OFFSET].requestFocus() }
+                runCatching { tabRequesters[tabIndexForOffset(state.dateOffset)].requestFocus() }
                 pendingFocusTimeOfDay = null
             }
         }
@@ -207,7 +208,7 @@ fun EpgPanel(
                 focusIndex = focusIndex,
                 entryRequester = programListEntryRequester,
                 onLeftToChannel = onLeftFromPanel,
-                onUpToTab = { tabRequesters[state.dateOffset - MIN_DATE_OFFSET].requestFocus() },
+                onUpToTab = { tabRequesters[tabIndexForOffset(state.dateOffset)].requestFocus() },
                 onSwitchDay = switchDay,
                 onUserInteraction = onUserInteraction
             )
@@ -236,7 +237,7 @@ private fun DateTabStrip(
         verticalAlignment = Alignment.CenterVertically
     ) {
         labels.forEachIndexed { index, label ->
-            val offset = index - 1
+            val offset = DATE_TAB_OFFSETS[index]
             DateTab(
                 label = label,
                 isSelected = offset == selected,
@@ -358,15 +359,18 @@ private fun ProgramList(
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (event.key) {
                         Key.DirectionLeft -> {
-                            // Yesterday's list LEFT returns to the channel column; other
-                            // days move to the previous day, keeping this program's slot.
-                            if (dateOffset == MIN_DATE_OFFSET) onLeftToChannel()
-                            else onSwitchDay(dateOffset - 1, startLocalTime)
+                            if (tabIndexForOffset(dateOffset) == 0) {
+                                onLeftToChannel()
+                            } else {
+                                onSwitchDay(DATE_TAB_OFFSETS[tabIndexForOffset(dateOffset) - 1], startLocalTime)
+                            }
                             true
                         }
                         Key.DirectionRight -> {
-                            // Tomorrow's list RIGHT is a no-op; other days move forward.
-                            if (dateOffset < MAX_DATE_OFFSET) onSwitchDay(dateOffset + 1, startLocalTime)
+                            val tabIndex = tabIndexForOffset(dateOffset)
+                            if (tabIndex < DATE_TAB_OFFSETS.lastIndex) {
+                                onSwitchDay(DATE_TAB_OFFSETS[tabIndex + 1], startLocalTime)
+                            }
                             true
                         }
                         Key.DirectionUp -> {
@@ -388,6 +392,8 @@ private fun ProgramList(
         }
     }
 }
+
+private fun tabIndexForOffset(dateOffset: Int): Int = DATE_TAB_OFFSETS.indexOf(dateOffset).coerceAtLeast(0)
 
 @Composable
 private fun ProgramRow(
