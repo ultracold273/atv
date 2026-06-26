@@ -47,6 +47,9 @@ import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun IptvSettingsScreen(
@@ -325,6 +328,15 @@ private fun HomeProxyFields(
         onValueChange = viewModel::setProxyBaseUrl,
         keyboardType = KeyboardType.Uri,
     )
+    ActionButton(
+        label = stringResource(R.string.proxy_pairing_generate_code),
+        enabled = uiState.canStartProxyPairing,
+        onClick = viewModel::startProxyPairing,
+    )
+    ProxyPairingStatusBlock(
+        status = uiState.proxyPairingStatus,
+        onCancel = viewModel::cancelProxyPairing,
+    )
     IptvField(
         label = stringResource(R.string.channel_source_proxy_token),
         value = uiState.proxyAccessToken,
@@ -333,6 +345,83 @@ private fun HomeProxyFields(
         isPassword = true,
     )
 }
+
+@Composable
+private fun ProxyPairingStatusBlock(
+    status: ProxyPairingStatus,
+    onCancel: () -> Unit,
+) {
+    when (status) {
+        ProxyPairingStatus.Idle -> Unit
+        ProxyPairingStatus.Creating -> Text(
+            text = stringResource(R.string.proxy_pairing_creating),
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.OnSurfaceVariant,
+        )
+        is ProxyPairingStatus.Pending -> {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = formatPairingCode(status.pairingCode),
+                    style = AtvTypography.headlineLarge,
+                    color = AtvColors.Primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = stringResource(R.string.proxy_pairing_pending),
+                    style = AtvTypography.bodyMedium,
+                    color = AtvColors.OnSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(R.string.proxy_pairing_expires_at, formatPairingExpiry(status.expiresAt)),
+                    style = AtvTypography.bodyMedium,
+                    color = AtvColors.OnSurfaceVariant,
+                )
+                ActionButton(
+                    label = stringResource(R.string.proxy_pairing_cancel),
+                    enabled = true,
+                    onClick = onCancel,
+                )
+            }
+        }
+        ProxyPairingStatus.Approved -> Text(
+            text = stringResource(R.string.proxy_pairing_approved),
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.Primary,
+        )
+        ProxyPairingStatus.Rejected -> Text(
+            text = stringResource(R.string.proxy_pairing_rejected),
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.Error,
+        )
+        ProxyPairingStatus.Expired -> Text(
+            text = stringResource(R.string.proxy_pairing_expired),
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.Error,
+        )
+        ProxyPairingStatus.Cancelled -> Text(
+            text = stringResource(R.string.proxy_pairing_cancelled),
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.OnSurfaceVariant,
+        )
+        is ProxyPairingStatus.Error -> Text(
+            text = stringResource(R.string.proxy_pairing_error, status.reason),
+            style = AtvTypography.bodyMedium,
+            color = AtvColors.Error,
+        )
+    }
+}
+
+private fun formatPairingCode(code: String): String = code
+    .filter { it.isDigit() }
+    .chunked(3)
+    .joinToString(" ")
+
+private fun formatPairingExpiry(expiresAt: Long): String = runCatching {
+    DateTimeFormatter.ofPattern("HH:mm")
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.ofEpochSecond(expiresAt))
+}.getOrDefault("--:--")
 
 @Composable
 private fun IptvField(

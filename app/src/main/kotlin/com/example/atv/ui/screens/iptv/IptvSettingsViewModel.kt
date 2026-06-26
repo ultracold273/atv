@@ -1,11 +1,16 @@
 package com.example.atv.ui.screens.iptv
 
 import android.content.Context
+import android.os.Build
+import android.provider.Settings
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atv.data.epg.DeviceDefaultsProvider
+import com.example.atv.data.proxy.ProxyPairingClient
+import com.example.atv.data.proxy.ProxyPairingCreateRequestDto
 import com.example.atv.domain.model.ChannelSourceMode
+import com.example.atv.domain.model.ProxySettings
 import com.example.atv.domain.model.UserPreferences
 import com.example.atv.domain.repository.ChannelSourceSettingsStore
 import com.example.atv.domain.repository.IptvCredentialsStore
@@ -21,10 +26,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import timber.log.Timber
 import java.io.File
+import java.security.SecureRandom
+import java.util.Base64
 import javax.inject.Inject
 
 @HiltViewModel
@@ -37,12 +46,16 @@ class IptvSettingsViewModel @Inject constructor(
     private val deviceDefaults: DeviceDefaultsProvider,
     private val importChannelsUseCase: UnifiedImportChannelsUseCase,
     private val loadPlaylistUseCase: LoadPlaylistUseCase,
+    private val proxyPairingClient: ProxyPairingClient,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(IptvSettingsUiState())
     val uiState: StateFlow<IptvSettingsUiState> = _uiState.asStateFlow()
 
     private val importMutex = Mutex()
+    private val secureRandom = SecureRandom()
+    private var pairingJob: Job? = null
+    private var activePairingId: String? = null
 
     init {
         observeSettings()
@@ -95,10 +108,64 @@ class IptvSettingsViewModel @Inject constructor(
     fun setAuthServerUrl(v: String) = _uiState.update { it.copy(authServerUrl = v) }
     fun setUdpxyProxy(v: String) = _uiState.update { it.copy(udpxyProxy = v) }
     fun setProxyBaseUrl(v: String) = _uiState.update { it.copy(proxyBaseUrl = v) }
-    fun setProxyAccessToken(v: String) = _uiState.update { it.copy(proxyAccessToken = v) }
+    fun setProxyAccessToken(v: String) {
+        cancelProxyPairing(markCancelled = false)
+        _uiState.update { it.copy(proxyAccessToken = v, proxyPairingStatus = ProxyPairingStatus.Idle) }
+    }
+
+    fun startProxyPairing() {
+        val proxyBaseUrl = _uiState.value.proxyBaseUrl.trim()
+        val validation = ProxySettings(proxyBaseUrl, "placeholder")
+        if (!validation.isComplete) {
+            _uiState.update { it.copy(proxyPairingStatus = ProxyPairingStatus.Error("invalid proxy URL")) }
+            return
+        }
+        cancelProxyPairing(markCancelled = false)
+        val pairingId = newPairingId()
+        val clientNonce = newClientNonce()
+        activePairingId = pairingId
+        pairingJob = viewModelScope.launch {
+            _uiState.update { it.copy(proxyPairingStatus = ProxyPairingStatus.Creating) }
+            val createRequest = ProxyPairingCreateRequestDto(
+                deviceName = deviceName(),
+                appId = context.packageName,
+                appVersion = appVersion(),
+                clientNonce = clientNonce,
+            )
+            proxyPairingClient.createSession(proxyBaseUrl, createRequest).fold(
+                onSuccess = { response ->
+                    if (!isActivePairing(pairingId)) return@launch
+                    _uiState.update {
+                        it.copy(
+                            proxyPairingStatus = ProxyPairingStatus.Pending(
+                                sessionId = response.sessionId,
+                                pairingCode = response.pairingCode,
+                                expiresAt = response.expiresAt,
+                            ),
+                        )
+                    }
+                    pollProxyPairing(
+                        pairingId = pairingId,
+                        proxyBaseUrl = proxyBaseUrl,
+                        sessionId = response.sessionId,
+                        clientNonce = clientNonce,
+                        intervalSeconds = response.pollIntervalSeconds,
+                    )
+                },
+                onFailure = { t ->
+                    if (isActivePairing(pairingId)) {
+                        _uiState.update { it.copy(proxyPairingStatus = ProxyPairingStatus.Error(t.message.orEmpty())) }
+                    }
+                },
+            )
+        }
+    }
+
+    fun cancelProxyPairing() = cancelProxyPairing(markCancelled = true)
 
     fun testAndImport() {
         if (!importMutex.tryLock()) return
+        cancelProxyPairing(markCancelled = false)
         viewModelScope.launch {
             try {
                 when (_uiState.value.sourceMode) {
@@ -236,6 +303,7 @@ class IptvSettingsViewModel @Inject constructor(
                     importStatus = ImportStatus.Idle,
                     proxyBaseUrl = "",
                     proxyAccessToken = "",
+                    proxyPairingStatus = ProxyPairingStatus.Idle,
                 )
             }
             applyDefaults()
@@ -262,5 +330,133 @@ class IptvSettingsViewModel @Inject constructor(
         is ImportResult.LoginFailure -> ImportStatus.LoginFailed(reason)
         is ImportResult.FetchFailure -> ImportStatus.FetchFailed(reason)
         ImportResult.NoChannelsReturned -> ImportStatus.NoChannelsReturned
+    }
+
+    private suspend fun pollProxyPairing(
+        pairingId: String,
+        proxyBaseUrl: String,
+        sessionId: String,
+        clientNonce: String,
+        intervalSeconds: Long,
+    ) {
+        var nextInterval = intervalSeconds.coerceIn(MIN_PAIRING_POLL_SECONDS, MAX_PAIRING_POLL_SECONDS)
+        while (isActivePairing(pairingId)) {
+            delay(nextInterval * MILLIS_PER_SECOND)
+            if (!isActivePairing(pairingId)) return
+            proxyPairingClient.pollSession(proxyBaseUrl, sessionId, clientNonce).fold(
+                onSuccess = { response ->
+                    if (!isActivePairing(pairingId)) return
+                    when (response.status) {
+                        "pending" -> {
+                            nextInterval = (response.pollIntervalSeconds ?: nextInterval)
+                                .coerceIn(MIN_PAIRING_POLL_SECONDS, MAX_PAIRING_POLL_SECONDS)
+                            _uiState.update { state ->
+                                state.copy(
+                                    proxyPairingStatus = ProxyPairingStatus.Pending(
+                                        sessionId = sessionId,
+                                        pairingCode = (state.proxyPairingStatus as? ProxyPairingStatus.Pending)
+                                            ?.pairingCode
+                                            .orEmpty(),
+                                        expiresAt = response.expiresAt
+                                            ?: (state.proxyPairingStatus as? ProxyPairingStatus.Pending)?.expiresAt
+                                            ?: 0L,
+                                    ),
+                                )
+                            }
+                        }
+                        "approved" -> handlePairingApproved(pairingId, proxyBaseUrl, response.accessToken, response.tokenType)
+                        "rejected" -> finishPairing(pairingId, ProxyPairingStatus.Rejected)
+                        "expired" -> finishPairing(pairingId, ProxyPairingStatus.Expired)
+                        else -> finishPairing(pairingId, ProxyPairingStatus.Error("unknown pairing status"))
+                    }
+                },
+                onFailure = { t ->
+                    if (isActivePairing(pairingId)) {
+                        finishPairing(pairingId, ProxyPairingStatus.Error(t.message.orEmpty()))
+                    }
+                },
+            )
+        }
+    }
+
+    private suspend fun handlePairingApproved(
+        pairingId: String,
+        proxyBaseUrl: String,
+        accessToken: String?,
+        tokenType: String?,
+    ) {
+        if (accessToken.isNullOrBlank() || !tokenType.equals("Bearer", ignoreCase = true)) {
+            finishPairing(pairingId, ProxyPairingStatus.Error("pairing response missing token"))
+            return
+        }
+        val settings = ProxySettings(proxyBaseUrl, accessToken)
+        if (!settings.isComplete) {
+            finishPairing(pairingId, ProxyPairingStatus.Error("pairing response invalid"))
+            return
+        }
+        sourceSettingsStore.saveProxySettings(settings)
+        sourceSettingsStore.saveMode(ChannelSourceMode.HOME_PROXY)
+        activePairingId = null
+        _uiState.update {
+            it.copy(
+                proxyAccessToken = accessToken,
+                activeSourceMode = ChannelSourceMode.HOME_PROXY,
+                proxyPairingStatus = ProxyPairingStatus.Approved,
+            )
+        }
+    }
+
+    private fun finishPairing(pairingId: String, status: ProxyPairingStatus) {
+        if (!isActivePairing(pairingId)) return
+        activePairingId = null
+        _uiState.update { it.copy(proxyPairingStatus = status) }
+    }
+
+    private fun cancelProxyPairing(markCancelled: Boolean) {
+        val hadActivePairing = activePairingId != null
+        activePairingId = null
+        pairingJob?.cancel()
+        pairingJob = null
+        if (markCancelled && hadActivePairing) {
+            _uiState.update { it.copy(proxyPairingStatus = ProxyPairingStatus.Cancelled) }
+        }
+    }
+
+    private fun isActivePairing(pairingId: String): Boolean = activePairingId == pairingId
+
+    private fun newPairingId(): String = newClientNonce()
+
+    private fun newClientNonce(): String {
+        val bytes = ByteArray(CLIENT_NONCE_BYTES)
+        secureRandom.nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private fun deviceName(): String {
+        val configuredName = runCatching {
+            Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
+        }.getOrNull()
+        if (!configuredName.isNullOrBlank()) return configuredName
+        return listOfNotNull(Build.MANUFACTURER, Build.MODEL)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .ifBlank { "Android TV" }
+    }
+
+    private fun appVersion(): String = runCatching {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        info.versionName.orEmpty().ifBlank { "unknown" }
+    }.getOrDefault("unknown")
+
+    override fun onCleared() {
+        cancelProxyPairing(markCancelled = false)
+        super.onCleared()
+    }
+
+    private companion object {
+        const val CLIENT_NONCE_BYTES = 32
+        const val MIN_PAIRING_POLL_SECONDS = 2L
+        const val MAX_PAIRING_POLL_SECONDS = 10L
+        const val MILLIS_PER_SECOND = 1000L
     }
 }

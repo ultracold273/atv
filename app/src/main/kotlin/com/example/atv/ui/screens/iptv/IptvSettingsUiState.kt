@@ -17,6 +17,7 @@ data class IptvSettingsUiState(
     val udpxyProxy: String = "",
     val proxyBaseUrl: String = "",
     val proxyAccessToken: String = "",
+    val proxyPairingStatus: ProxyPairingStatus = ProxyPairingStatus.Idle,
     val importStatus: ImportStatus = ImportStatus.Idle,
     val showClearConfirmation: Boolean = false,
 ) {
@@ -32,6 +33,29 @@ data class IptvSettingsUiState(
             ChannelSourceMode.DIRECT_CTC -> asCredentials.isComplete
             ChannelSourceMode.HOME_PROXY -> asProxySettings.isComplete
         }
+
+    val canStartProxyPairing: Boolean
+        get() = sourceMode == ChannelSourceMode.HOME_PROXY &&
+            asProxySettings.copy(accessToken = "placeholder").isComplete &&
+            !proxyPairingStatus.isInProgress
+}
+
+sealed class ProxyPairingStatus {
+    object Idle : ProxyPairingStatus()
+    object Creating : ProxyPairingStatus()
+    data class Pending(
+        val sessionId: String,
+        val pairingCode: String,
+        val expiresAt: Long,
+    ) : ProxyPairingStatus()
+    object Approved : ProxyPairingStatus()
+    object Rejected : ProxyPairingStatus()
+    object Expired : ProxyPairingStatus()
+    object Cancelled : ProxyPairingStatus()
+    data class Error(val reason: String) : ProxyPairingStatus()
+
+    val isInProgress: Boolean
+        get() = this is Creating || this is Pending
 }
 
 sealed class ImportStatus {

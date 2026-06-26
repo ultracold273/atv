@@ -113,6 +113,16 @@
     <string name="channel_source_import_playlist">Import playlist</string>
     <string name="channel_source_proxy_url">Proxy URL</string>
     <string name="channel_source_proxy_token">Access token</string>
+    <string name="proxy_pairing_generate_code">Generate pairing code</string>
+    <string name="proxy_pairing_creating">Creating pairing code&#8230;</string>
+    <string name="proxy_pairing_pending">Waiting for proxy approval.</string>
+    <string name="proxy_pairing_expires_at">Expires at %1$s</string>
+    <string name="proxy_pairing_cancel">Cancel pairing</string>
+    <string name="proxy_pairing_approved">Pairing approved. Token saved.</string>
+    <string name="proxy_pairing_rejected">Pairing rejected.</string>
+    <string name="proxy_pairing_expired">Pairing code expired.</string>
+    <string name="proxy_pairing_cancelled">Pairing cancelled.</string>
+    <string name="proxy_pairing_error">Pairing failed: %1$s</string>
     <string name="iptv_setup_title">Channel Source</string>
     <string name="iptv_setup_subtitle_not_configured">Not configured</string>
     <string name="iptv_setup_subtitle_imported">%1$d channels imported</string>

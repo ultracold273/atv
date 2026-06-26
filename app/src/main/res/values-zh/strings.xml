@@ -114,6 +114,16 @@
     <string name="channel_source_import_playlist">导入播放列表</string>
     <string name="channel_source_proxy_url">代理地址</string>
     <string name="channel_source_proxy_token">访问令牌</string>
+    <string name="proxy_pairing_generate_code">生成配对码</string>
+    <string name="proxy_pairing_creating">正在生成配对码&#8230;</string>
+    <string name="proxy_pairing_pending">正在等待代理批准。</string>
+    <string name="proxy_pairing_expires_at">过期时间：%1$s</string>
+    <string name="proxy_pairing_cancel">取消配对</string>
+    <string name="proxy_pairing_approved">配对已批准，令牌已保存。</string>
+    <string name="proxy_pairing_rejected">配对已被拒绝。</string>
+    <string name="proxy_pairing_expired">配对码已过期。</string>
+    <string name="proxy_pairing_cancelled">配对已取消。</string>
+    <string name="proxy_pairing_error">配对失败：%1$s</string>
     <string name="iptv_setup_title">频道来源</string>
     <string name="iptv_setup_subtitle_not_configured">未配置</string>
     <string name="iptv_setup_subtitle_imported">已导入 %1$d 个频道</string>
