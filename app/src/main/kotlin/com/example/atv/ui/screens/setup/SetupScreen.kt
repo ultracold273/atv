@@ -113,7 +113,10 @@ private fun SetupButton(
             ),
         ),
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 text = text,
                 style = AtvTypography.titleMedium,
