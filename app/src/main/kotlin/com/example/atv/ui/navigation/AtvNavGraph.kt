@@ -108,6 +108,12 @@ fun AtvNavGraph(
         composable(Routes.CHANNEL_SOURCE_M3U8) {
             IptvSettingsScreen(
                 initialMode = ChannelSourceMode.M3U8,
+                onBackAfterSuccessfulImport = {
+                    navController.navigate(Routes.PLAYBACK) {
+                        popUpTo(Routes.SETUP) { inclusive = true }
+                    }
+                    true
+                },
                 onBack = {
                     if (navController.previousBackStackEntry != null) {
                         navController.popBackStack()
