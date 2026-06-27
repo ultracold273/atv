@@ -11,6 +11,7 @@ import okhttp3.Request
 import timber.log.Timber
 import java.io.IOException
 import java.time.Instant
+import java.time.OffsetDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -82,8 +83,8 @@ class ProxyChannelClient @Inject constructor(
                     Program(
                         code = program.code,
                         name = program.name,
-                        start = Instant.parse(program.start),
-                        end = Instant.parse(program.end),
+                        start = parseProgramInstant(program.start),
+                        end = parseProgramInstant(program.end),
                         isLive = program.isLive,
                         isReplayable = program.isReplayable,
                     )
@@ -106,4 +107,7 @@ class ProxyChannelClient @Inject constructor(
     private fun urlEncode(value: String): String = java.net.URLEncoder
         .encode(value, Charsets.UTF_8.name())
         .replace("+", "%20")
+
+    private fun parseProgramInstant(value: String): Instant = runCatching { Instant.parse(value) }
+        .getOrElse { OffsetDateTime.parse(value).toInstant() }
 }

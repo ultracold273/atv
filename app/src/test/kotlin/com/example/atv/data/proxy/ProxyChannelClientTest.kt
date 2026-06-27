@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.time.Instant
 
 class ProxyChannelClientTest {
     private lateinit var server: MockWebServer
@@ -90,6 +91,36 @@ class ProxyChannelClientTest {
         assertTrue(request.requestUrl?.queryParameter("channelCode") == "ch 1")
         assertTrue(request.requestUrl?.queryParameter("dateOffset") == "0")
         assertTrue(request.path.orEmpty().contains("dateOffset=0"))
+    }
+
+    @Test
+    fun `fetchPrograms parses EPG timestamps with timezone offsets`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """
+                {
+                  "data": [
+                    {
+                      "code": "p1",
+                      "name": "Midnight News",
+                      "start": "2026-06-27T00:00:00+08:00",
+                      "end": "2026-06-27T01:00:00+08:00",
+                      "isLive": false,
+                      "isReplayable": true
+                    }
+                  ],
+                  "cache": {"stale": false, "cachedAt": 1780833600, "ttlSeconds": 300}
+                }
+                """.trimIndent(),
+            ),
+        )
+
+        val result = client.fetchPrograms(settings(), "ch1", 0)
+
+        assertTrue(result.isSuccess)
+        val program = result.getOrThrow().single()
+        assertEquals(Instant.parse("2026-06-26T16:00:00Z"), program.start)
+        assertEquals(Instant.parse("2026-06-26T17:00:00Z"), program.end)
     }
 
     @Test

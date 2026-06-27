@@ -3,6 +3,9 @@ package com.example.atv.ui.screens.iptv
 import android.content.Context
 import com.example.atv.data.epg.DefaultDeviceDefaultsProvider
 import com.example.atv.data.epg.DeviceDefaultsProvider
+import com.example.atv.data.proxy.ProxyPairingClient
+import com.example.atv.data.proxy.ProxyPairingCreateResponseDto
+import com.example.atv.data.proxy.ProxyPairingPollResponseDto
 import com.example.atv.domain.model.ChannelSourceMode
 import com.example.atv.domain.model.IptvCredentials
 import com.example.atv.domain.model.ProxySettings
@@ -26,7 +29,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -47,6 +52,7 @@ class IptvSettingsViewModelTest {
     @MockK private lateinit var preferencesRepository: PreferencesRepository
     @MockK private lateinit var useCase: UnifiedImportChannelsUseCase
     @MockK private lateinit var loadPlaylistUseCase: LoadPlaylistUseCase
+    @MockK private lateinit var proxyPairingClient: ProxyPairingClient
 
     private val storedFlow = MutableStateFlow<IptvCredentials?>(null)
     private val testDispatcher = StandardTestDispatcher()
@@ -60,6 +66,7 @@ class IptvSettingsViewModelTest {
     fun setUp() {
         MockKAnnotations.init(this, relaxUnitFun = true)
         Dispatchers.setMain(testDispatcher)
+        every { context.packageName } returns "com.example.atv"
         every { store.observe() } returns storedFlow
         coEvery { store.save(any()) } just runs
         coEvery { store.clear() } just runs
@@ -70,6 +77,7 @@ class IptvSettingsViewModelTest {
         coEvery { sourceStore.clearProxySettings() } just runs
         every { preferencesRepository.getUserPreferences() } returns flowOf(UserPreferences())
         coEvery { preferencesRepository.setUdpxyProxy(any()) } just runs
+        coEvery { proxyPairingClient.createSession(any(), any()) } returns Result.failure(IllegalStateException("unused"))
     }
 
     @AfterEach
@@ -85,6 +93,7 @@ class IptvSettingsViewModelTest {
         deviceDefaults = defaults(),
         importChannelsUseCase = useCase,
         loadPlaylistUseCase = loadPlaylistUseCase,
+        proxyPairingClient = proxyPairingClient,
     )
 
     @Test
@@ -169,6 +178,69 @@ class IptvSettingsViewModelTest {
         assertEquals(ChannelSourceMode.HOME_PROXY, vm.uiState.value.activeSourceMode)
         coVerify { sourceStore.saveProxySettings(ProxySettings("http://openwrt:8080", "token")) }
         coVerify { sourceStore.saveMode(ChannelSourceMode.HOME_PROXY) }
+    }
+
+    @Test
+    fun `proxy pairing approval saves token and activates home proxy`() = runTest {
+        coEvery { proxyPairingClient.createSession(any(), any()) } returns Result.success(
+            ProxyPairingCreateResponseDto(
+                sessionId = "ps_1",
+                pairingCode = "482913",
+                expiresAt = 1782543300,
+                pollIntervalSeconds = 2,
+            ),
+        )
+        coEvery { proxyPairingClient.pollSession(any(), any(), any()) } returns Result.success(
+            ProxyPairingPollResponseDto(
+                status = "approved",
+                accessToken = "paired-token",
+                tokenType = "Bearer",
+            ),
+        )
+        val vm = newVm()
+        advanceUntilIdle()
+        vm.selectMode(ChannelSourceMode.HOME_PROXY)
+        vm.setProxyBaseUrl("http://openwrt:8088")
+
+        vm.startProxyPairing()
+        runCurrent()
+        assertTrue(vm.uiState.value.proxyPairingStatus is ProxyPairingStatus.Pending)
+        advanceTimeBy(2_000)
+        advanceUntilIdle()
+
+        assertEquals("paired-token", vm.uiState.value.proxyAccessToken)
+        assertTrue(vm.uiState.value.proxyPairingStatus is ProxyPairingStatus.Approved)
+        assertEquals(ChannelSourceMode.HOME_PROXY, vm.uiState.value.activeSourceMode)
+        coVerify { sourceStore.saveProxySettings(ProxySettings("http://openwrt:8088", "paired-token")) }
+        coVerify { sourceStore.saveMode(ChannelSourceMode.HOME_PROXY) }
+    }
+
+    @Test
+    fun `proxy pairing rejection does not save token`() = runTest {
+        coEvery { proxyPairingClient.createSession(any(), any()) } returns Result.success(
+            ProxyPairingCreateResponseDto(
+                sessionId = "ps_1",
+                pairingCode = "482913",
+                expiresAt = 1782543300,
+                pollIntervalSeconds = 2,
+            ),
+        )
+        coEvery { proxyPairingClient.pollSession(any(), any(), any()) } returns Result.success(
+            ProxyPairingPollResponseDto(status = "rejected"),
+        )
+        val vm = newVm()
+        advanceUntilIdle()
+        vm.selectMode(ChannelSourceMode.HOME_PROXY)
+        vm.setProxyBaseUrl("http://openwrt:8088")
+
+        vm.startProxyPairing()
+        advanceUntilIdle()
+        advanceTimeBy(2_000)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.proxyPairingStatus is ProxyPairingStatus.Rejected)
+        assertEquals("", vm.uiState.value.proxyAccessToken)
+        coVerify(exactly = 0) { sourceStore.saveProxySettings(any()) }
     }
 
     @Test
