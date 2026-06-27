@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -113,7 +114,12 @@ private fun SetupButton(
         ),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(text = text, style = AtvTypography.titleMedium, color = AtvColors.OnSurface)
+            Text(
+                text = text,
+                style = AtvTypography.titleMedium,
+                color = AtvColors.OnSurface,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

@@ -54,6 +54,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun IptvSettingsScreen(
     onBack: () -> Boolean,
+    onBackAfterSuccessfulImport: (() -> Boolean)? = null,
     initialMode: ChannelSourceMode? = null,
     viewModel: IptvSettingsViewModel = hiltViewModel(),
 ) {
@@ -74,7 +75,13 @@ fun IptvSettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AtvColors.Background)
-            .handleDPadKeyEvents(onBack = { onBack() }),
+            .handleDPadKeyEvents(onBack = {
+                if (uiState.importStatus is ImportStatus.Success) {
+                    onBackAfterSuccessfulImport?.invoke() ?: onBack()
+                } else {
+                    onBack()
+                }
+            }),
     ) {
         Column(
             modifier = Modifier
