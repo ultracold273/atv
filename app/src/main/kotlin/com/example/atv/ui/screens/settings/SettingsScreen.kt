@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.atv.BuildConfig
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
@@ -406,7 +407,7 @@ private fun AboutDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = stringResource(R.string.version, "1.0.0"),
+                    text = stringResource(R.string.version, BuildConfig.VERSION_NAME),
                     style = AtvTypography.bodyMedium,
                     color = AtvColors.OnSurfaceVariant
                 )
