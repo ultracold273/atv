@@ -37,7 +37,7 @@ android {
         // Set APK filename: atv-{versionName}-{buildType}.apk
         setProperty("archivesBaseName", "atv-$computedVersionName")
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.example.atv.HiltTestRunner"
     }
 
     // ===========================================
@@ -102,6 +102,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDir("$projectDir/schemas")
+        }
     }
 
     lint {
