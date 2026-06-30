@@ -35,7 +35,7 @@ timber = "5.0.1"
 okhttp = "4.12.0"
 
 # Serialization (JSON)
-kotlinxSerialization = "1.7.3"
+kotlinxSerialization = "1.8.1"
 
 # Testing
 junit5 = "5.11.3"
