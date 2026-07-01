@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -75,6 +76,7 @@ fun PlaybackScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .testTag("playback_screen")
             .background(AtvColors.Background)
             .focusRequester(focusRequester)
             .focusable()

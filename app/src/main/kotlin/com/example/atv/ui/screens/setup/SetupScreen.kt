@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,7 @@ fun SetupScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .testTag("setup_screen")
             .background(AtvColors.Background)
             .handleDPadKeyEvents(onBack = {
                 if (uiState.hasExistingPlaylist) {
