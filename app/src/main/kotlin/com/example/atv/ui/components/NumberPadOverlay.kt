@@ -31,6 +31,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,6 +69,7 @@ fun NumberPadOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag("number_pad_overlay")
                 .background(AtvColors.Background.copy(alpha = 0.7f))
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {

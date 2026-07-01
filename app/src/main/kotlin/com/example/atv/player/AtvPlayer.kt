@@ -27,7 +27,7 @@ import javax.inject.Singleton
  * ExoPlayer wrapper that provides a clean API for channel playback.
  */
 @Singleton
-class AtvPlayer @Inject constructor(
+open class AtvPlayer @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
     private var exoPlayer: ExoPlayer? = null
@@ -38,12 +38,12 @@ class AtvPlayer @Inject constructor(
     private var resolvedStreamUrl: String? = null
     
     private val _playerState = MutableStateFlow<PlayerState>(PlayerState.Idle)
-    val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
+    open val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
     
     /**
      * Get the underlying ExoPlayer instance for use with PlayerView.
      */
-    val player: ExoPlayer?
+    open val player: ExoPlayer?
         get() = exoPlayer
     
     @OptIn(UnstableApi::class)
@@ -193,7 +193,7 @@ class AtvPlayer @Inject constructor(
      * Initialize the player. Must be called before playing.
      */
     @OptIn(UnstableApi::class)
-    fun initialize() {
+    open fun initialize() {
         if (exoPlayer != null) {
             Timber.d("Player already initialized")
             return
@@ -231,7 +231,7 @@ class AtvPlayer @Inject constructor(
     /**
      * Play a channel.
      */
-    fun playChannel(channel: Channel, playableStreamUrl: String = channel.streamUrl) {
+    open fun playChannel(channel: Channel, playableStreamUrl: String = channel.streamUrl) {
         Timber.d("Playing channel: ${channel.number} - ${channel.name}")
         currentChannel = channel
         resolvedStreamUrl = playableStreamUrl
@@ -257,7 +257,7 @@ class AtvPlayer @Inject constructor(
     /**
      * Retry playing the current channel.
      */
-    fun retry() {
+    open fun retry() {
         val channel = currentChannel ?: return
         _playerState.value = PlayerState.Loading(channel)
         exoPlayer?.apply {
@@ -273,21 +273,21 @@ class AtvPlayer @Inject constructor(
     /**
      * Pause playback.
      */
-    fun pause() {
+    open fun pause() {
         exoPlayer?.pause()
     }
     
     /**
      * Resume playback.
      */
-    fun resume() {
+    open fun resume() {
         exoPlayer?.play()
     }
     
     /**
      * Stop playback and clear media.
      */
-    fun stop() {
+    open fun stop() {
         Timber.d("Stopping playback")
         exoPlayer?.stop()
         exoPlayer?.clearMediaItems()
@@ -298,7 +298,7 @@ class AtvPlayer @Inject constructor(
     /**
      * Release the player. Call when done with the player.
      */
-    fun release() {
+    open fun release() {
         Timber.d("Releasing player")
         exoPlayer?.removeListener(playerListener)
         exoPlayer?.release()
