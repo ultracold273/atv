@@ -34,6 +34,7 @@ import com.example.atv.ui.components.NumberPadOverlay
 import com.example.atv.ui.components.SettingsMenu
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import com.example.atv.ui.testing.UiTestTags
 import com.example.atv.ui.util.handleDPadKeyEvents
 import java.time.Clock
 
@@ -76,7 +77,7 @@ fun PlaybackScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .testTag("playback_screen")
+            .testTag(UiTestTags.PlaybackScreen)
             .background(AtvColors.Background)
             .focusRequester(focusRequester)
             .focusable()

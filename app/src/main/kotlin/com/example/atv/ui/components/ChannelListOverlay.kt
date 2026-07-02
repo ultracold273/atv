@@ -46,6 +46,7 @@ import com.example.atv.R
 import com.example.atv.domain.model.Channel
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import com.example.atv.ui.testing.UiTestTags
 import kotlinx.coroutines.delay
 
 private const val FOCUS_REQUEST_DELAY_MS = 100L
@@ -86,7 +87,7 @@ fun ChannelListOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .testTag("channel_list_overlay")
+                .testTag(UiTestTags.ChannelListOverlay)
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
                         when (event.key) {

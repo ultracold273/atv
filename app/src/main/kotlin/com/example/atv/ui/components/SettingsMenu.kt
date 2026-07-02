@@ -37,6 +37,7 @@ import androidx.tv.material3.Text
 import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import com.example.atv.ui.testing.UiTestTags
 
 /**
  * Settings menu overlay.
@@ -61,7 +62,7 @@ fun SettingsMenu(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .testTag("settings_menu")
+                .testTag(UiTestTags.SettingsMenu)
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
                         when (event.key) {

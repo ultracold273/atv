@@ -3,12 +3,13 @@ package com.example.atv.testing.fakes
 import android.content.Context
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.atv.domain.model.Channel
-import com.example.atv.player.AtvPlayer
+import com.example.atv.player.AtvPlayerController
 import com.example.atv.player.PlayerState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class FakeAtvPlayer(context: Context) : AtvPlayer(context) {
+@Suppress("UNUSED_PARAMETER")
+class FakeAtvPlayer(context: Context) : AtvPlayerController {
     private val state = MutableStateFlow<PlayerState>(PlayerState.Idle)
 
     override val playerState: StateFlow<PlayerState> = state

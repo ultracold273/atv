@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.atv.ui.testing.UiTestTags
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Before
@@ -53,20 +54,20 @@ class SettingsFlowTest {
         // Given: App is on playback screen
         
         // When: User presses MENU button (or long-press BACK)
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         
         // Then: Settings menu should appear
         composeTestRule
-            .onNodeWithTag("settings_menu")
+            .onNodeWithTag(UiTestTags.SettingsMenu)
             .assertIsDisplayed()
     }
 
     @Test
     fun settingsMenuHasExpectedOptions() {
         // Given: Settings menu is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         
@@ -83,12 +84,12 @@ class SettingsFlowTest {
     @Test
     fun settingsMenuIsNavigableWithDpad() {
         // Given: Settings menu is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         
         // When: User navigates with D-pad
-        composeTestRule.onNodeWithTag("settings_menu").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.SettingsMenu).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionUp)
         }
@@ -100,25 +101,25 @@ class SettingsFlowTest {
     @Test
     fun settingsMenuClosesOnBackPress() {
         // Given: Settings menu is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         
         // When: User presses BACK
-        composeTestRule.onNodeWithTag("settings_menu").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.SettingsMenu).performKeyInput {
             pressKey(Key.Back)
         }
         
         // Then: Settings menu should close
         composeTestRule
-            .onNodeWithTag("settings_menu")
+            .onNodeWithTag(UiTestTags.SettingsMenu)
             .assertDoesNotExist()
     }
 
     @Test
     fun loadNewPlaylistOpensFilePicker() {
         // Given: Settings menu is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         
@@ -135,7 +136,7 @@ class SettingsFlowTest {
     @Test
     fun clearPlaylistShowsConfirmationDialog() {
         // Given: Settings menu is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         
@@ -153,7 +154,7 @@ class SettingsFlowTest {
     @Test
     fun cancelingClearPlaylistKeepsData() {
         // Given: Clear confirmation dialog is shown
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         composeTestRule
@@ -172,7 +173,7 @@ class SettingsFlowTest {
     @Test
     fun confirmingClearPlaylistRemovesData() {
         // Given: Clear confirmation dialog is shown
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         composeTestRule
@@ -193,7 +194,7 @@ class SettingsFlowTest {
     @Test
     fun settingsMenuAutoClosesAfterTimeout() {
         // Given: Settings menu is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         
@@ -201,7 +202,7 @@ class SettingsFlowTest {
         composeTestRule.waitUntil(timeoutMillis = 35000) {
             runCatching {
                 composeTestRule
-                    .onNodeWithTag("settings_menu")
+                    .onNodeWithTag(UiTestTags.SettingsMenu)
                     .assertDoesNotExist()
                 true
             }.getOrDefault(false)
@@ -213,7 +214,7 @@ class SettingsFlowTest {
     @Test
     fun aboutScreenShowsAppVersion() {
         // Given: Settings menu is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Menu)
         }
         

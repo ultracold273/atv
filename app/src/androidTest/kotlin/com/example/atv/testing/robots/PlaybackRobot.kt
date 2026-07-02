@@ -8,26 +8,27 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import com.example.atv.ui.testing.UiTestTags
 
 class PlaybackRobot(
     private val composeRule: ComposeTestRule,
 ) {
     fun assertPlaybackVisible(): PlaybackRobot = apply {
-        waitUntilTagDisplayed("playback_screen")
-        composeRule.onNodeWithTag("playback_screen").assertIsDisplayed()
+        waitUntilTagDisplayed(UiTestTags.PlaybackScreen)
+        composeRule.onNodeWithTag(UiTestTags.PlaybackScreen).assertIsDisplayed()
     }
 
     fun assertChannelInfoVisible(channelName: String): PlaybackRobot = apply {
-        waitUntilTagDisplayed("channel_info_overlay")
+        waitUntilTagDisplayed(UiTestTags.ChannelInfoOverlay)
         waitUntilTextDisplayed(channelName)
-        composeRule.onNodeWithTag("channel_info_overlay").assertIsDisplayed()
+        composeRule.onNodeWithTag(UiTestTags.ChannelInfoOverlay).assertIsDisplayed()
         composeRule.onNodeWithText(channelName).assertIsDisplayed()
     }
 
     fun waitForChannelInfoHidden(): PlaybackRobot = apply {
         composeRule.waitUntil(timeoutMillis = 4_000) {
             runCatching {
-                composeRule.onNodeWithTag("channel_info_overlay").assertDoesNotExist()
+                composeRule.onNodeWithTag(UiTestTags.ChannelInfoOverlay).assertDoesNotExist()
                 true
             }.getOrDefault(false)
         }
@@ -35,22 +36,22 @@ class PlaybackRobot(
 
     @OptIn(ExperimentalTestApi::class)
     fun pressDpadDown(): PlaybackRobot = apply {
-        composeRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.DirectionDown)
         }
     }
 
     @OptIn(ExperimentalTestApi::class)
     fun pressDpadLeft(): PlaybackRobot = apply {
-        composeRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.DirectionLeft)
         }
     }
 
     fun assertChannelListVisible(): PlaybackRobot = apply {
-        waitUntilTagDisplayed("channel_list_overlay")
+        waitUntilTagDisplayed(UiTestTags.ChannelListOverlay)
         waitUntilTextDisplayed("Channels")
-        composeRule.onNodeWithTag("channel_list_overlay").assertIsDisplayed()
+        composeRule.onNodeWithTag(UiTestTags.ChannelListOverlay).assertIsDisplayed()
         composeRule.onNodeWithText("Channels").assertIsDisplayed()
     }
 

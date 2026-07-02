@@ -38,6 +38,7 @@ import androidx.tv.material3.Text
 import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import com.example.atv.ui.testing.UiTestTags
 
 /**
  * Error overlay showing stream failure with retry/next options.
@@ -60,7 +61,7 @@ fun ErrorOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .testTag("error_overlay")
+                .testTag(UiTestTags.ErrorOverlay)
                 .background(AtvColors.Background.copy(alpha = 0.8f))
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {

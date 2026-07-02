@@ -28,6 +28,7 @@ import com.example.atv.domain.model.Channel
 import com.example.atv.domain.model.Program
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import com.example.atv.ui.testing.UiTestTags
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -56,7 +57,7 @@ fun ChannelInfoOverlay(
         modifier = modifier
     ) {
         channel?.let {
-            Box(modifier = Modifier.fillMaxSize().testTag("channel_info_overlay")) {
+            Box(modifier = Modifier.fillMaxSize().testTag(UiTestTags.ChannelInfoOverlay)) {
                 // Top-left: existing channel block (unchanged content)
                 Box(
                     modifier = Modifier

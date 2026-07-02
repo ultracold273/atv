@@ -2,7 +2,7 @@ package com.example.atv.testing.di
 
 import android.content.Context
 import com.example.atv.di.PlayerModule
-import com.example.atv.player.AtvPlayer
+import com.example.atv.player.AtvPlayerController
 import com.example.atv.testing.fakes.FakeAtvPlayer
 import dagger.Module
 import dagger.Provides
@@ -20,7 +20,7 @@ import javax.inject.Singleton
 object TestPlayerModule {
     @Provides
     @Singleton
-    fun provideAtvPlayer(@ApplicationContext context: Context): AtvPlayer {
+    fun provideAtvPlayerController(@ApplicationContext context: Context): AtvPlayerController {
         return FakeAtvPlayer(context)
     }
 }

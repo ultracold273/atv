@@ -13,7 +13,7 @@ import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.ResolveStreamUrlUseCase
 import com.example.atv.domain.usecase.SwitchChannelUseCase
-import com.example.atv.player.AtvPlayer
+import com.example.atv.player.AtvPlayerController
 import com.example.atv.player.PlayerState
 import com.example.atv.ui.components.SnackBarManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,7 +41,7 @@ import javax.inject.Inject
 @Suppress("TooManyFunctions", "LongParameterList") // Central playback ViewModel: many UI actions + injected deps
 class PlaybackViewModel @Inject constructor(
     private val application: Application,
-    private val atvPlayer: AtvPlayer,
+    private val atvPlayer: AtvPlayerController,
     private val channelRepository: ChannelRepository,
     private val channelSourceSettingsStore: ChannelSourceSettingsStore,
     private val preferencesRepository: PreferencesRepository,

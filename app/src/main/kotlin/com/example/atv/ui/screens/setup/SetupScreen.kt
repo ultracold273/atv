@@ -30,6 +30,7 @@ import androidx.tv.material3.Text
 import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import com.example.atv.ui.testing.UiTestTags
 import com.example.atv.ui.util.handleDPadKeyEvents
 
 @Composable
@@ -46,7 +47,7 @@ fun SetupScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .testTag("setup_screen")
+            .testTag(UiTestTags.SetupScreen)
             .background(AtvColors.Background)
             .handleDPadKeyEvents(onBack = {
                 if (uiState.hasExistingPlaylist) {
