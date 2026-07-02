@@ -2,6 +2,7 @@ package com.example.atv.di
 
 import android.content.Context
 import com.example.atv.player.AtvPlayer
+import com.example.atv.player.AtvPlayerController
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -18,9 +19,9 @@ object PlayerModule {
     
     @Provides
     @Singleton
-    fun provideAtvPlayer(
+    fun provideAtvPlayerController(
         @ApplicationContext context: Context
-    ): AtvPlayer {
+    ): AtvPlayerController {
         return AtvPlayer(context)
     }
 }

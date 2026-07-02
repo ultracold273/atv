@@ -31,6 +31,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,7 @@ import androidx.tv.material3.Text
 import com.example.atv.R
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
+import com.example.atv.ui.testing.UiTestTags
 import kotlinx.coroutines.delay
 
 private const val FOCUS_REQUEST_DELAY_MS = 100L
@@ -68,6 +70,7 @@ fun NumberPadOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag(UiTestTags.NumberPadOverlay)
                 .background(AtvColors.Background.copy(alpha = 0.7f))
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {

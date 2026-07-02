@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.atv.ui.testing.UiTestTags
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Before
@@ -54,7 +55,7 @@ class ChannelNavigationTest {
         // This test requires pre-loaded test playlist data
         
         // When: User presses D-pad UP
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.DirectionUp)
         }
         
@@ -69,7 +70,7 @@ class ChannelNavigationTest {
         // Given: Playback screen with channel 1 playing
         
         // When: User presses D-pad DOWN
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.DirectionDown)
         }
         
@@ -82,13 +83,13 @@ class ChannelNavigationTest {
         // Given: Playback screen playing
         
         // When: User presses D-pad UP or DOWN
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.DirectionUp)
         }
         
         // Then: Channel info overlay should appear
         composeTestRule
-            .onNodeWithTag("channel_info_overlay")
+            .onNodeWithTag(UiTestTags.ChannelInfoOverlay)
             .assertIsDisplayed()
     }
 
@@ -100,7 +101,7 @@ class ChannelNavigationTest {
         composeTestRule.waitUntil(timeoutMillis = 4000) {
             runCatching {
                 composeTestRule
-                    .onNodeWithTag("channel_info_overlay")
+                    .onNodeWithTag(UiTestTags.ChannelInfoOverlay)
                     .assertDoesNotExist()
                 true
             }.getOrDefault(false)
@@ -114,25 +115,25 @@ class ChannelNavigationTest {
         // Given: Playback screen playing
         
         // When: User presses D-pad LEFT
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.DirectionLeft)
         }
         
         // Then: Channel list overlay should appear
         composeTestRule
-            .onNodeWithTag("channel_list_overlay")
+            .onNodeWithTag(UiTestTags.ChannelListOverlay)
             .assertIsDisplayed()
     }
 
     @Test
     fun selectingChannelFromListSwitchesPlayback() {
         // Given: Channel list overlay is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.DirectionLeft)
         }
         
         // When: User selects a channel
-        composeTestRule.onNodeWithTag("channel_list_overlay").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.ChannelListOverlay).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.Enter)
         }
@@ -145,20 +146,20 @@ class ChannelNavigationTest {
         // Given: Playback screen playing
         
         // When: User presses OK/Enter to open number pad
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Enter)
         }
         
         // Then: Number pad overlay should appear
         composeTestRule
-            .onNodeWithTag("number_pad_overlay")
+            .onNodeWithTag(UiTestTags.NumberPadOverlay)
             .assertIsDisplayed()
     }
 
     @Test
     fun enteringChannelNumberNavigatesToChannel() {
         // Given: Number pad is open
-        composeTestRule.onNodeWithTag("playback_screen").performKeyInput {
+        composeTestRule.onNodeWithTag(UiTestTags.PlaybackScreen).performKeyInput {
             pressKey(Key.Enter)
         }
         

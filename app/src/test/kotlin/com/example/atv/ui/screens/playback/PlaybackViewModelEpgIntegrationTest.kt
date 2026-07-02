@@ -11,7 +11,7 @@ import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.ResolveStreamUrlUseCase
 import com.example.atv.domain.usecase.SwitchChannelUseCase
-import com.example.atv.player.AtvPlayer
+import com.example.atv.player.AtvPlayerController
 import com.example.atv.player.PlayerState
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -54,7 +54,7 @@ import java.time.ZoneId
 class PlaybackViewModelEpgIntegrationTest {
 
     private lateinit var application: Application
-    private lateinit var atvPlayer: AtvPlayer
+    private lateinit var atvPlayer: AtvPlayerController
     private lateinit var channelRepository: ChannelRepository
     private lateinit var channelSourceSettingsStore: ChannelSourceSettingsStore
     private lateinit var preferencesRepository: PreferencesRepository

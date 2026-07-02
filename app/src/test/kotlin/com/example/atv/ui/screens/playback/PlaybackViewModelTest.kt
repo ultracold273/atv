@@ -10,7 +10,7 @@ import com.example.atv.domain.repository.EpgProvider
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.ResolveStreamUrlUseCase
 import com.example.atv.domain.usecase.SwitchChannelUseCase
-import com.example.atv.player.AtvPlayer
+import com.example.atv.player.AtvPlayerController
 import com.example.atv.player.PlayerState
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
@@ -37,7 +37,7 @@ class PlaybackViewModelTest {
     private lateinit var application: Application
 
     @MockK
-    private lateinit var atvPlayer: AtvPlayer
+    private lateinit var atvPlayer: AtvPlayerController
 
     @MockK
     private lateinit var channelRepository: ChannelRepository
