@@ -142,7 +142,7 @@ jobs:
       - name: Build instrumentation APK
         run: ./gradlew app:assembleDebug app:assembleDebugAndroidTest --no-daemon
 
-      - name: Run seeded playback smoke test
+      - name: Run seeded Android smoke tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 31
@@ -152,7 +152,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           emulator-boot-timeout: 900
-          script: ./gradlew app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.atv.PlaybackSmokeTest --no-daemon
+          script: ./gradlew app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.atv.PlaybackSmokeTest,com.example.atv.SetupSmokeTest --no-daemon
 
       - name: Upload android smoke reports
         if: always()

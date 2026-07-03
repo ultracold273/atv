@@ -7,6 +7,10 @@ import com.example.atv.domain.model.Channel
 class E2eDatabaseSeeder(
     private val channelDao: ChannelDao,
 ) {
+    suspend fun seedEmpty() {
+        channelDao.deleteAll()
+    }
+
     suspend fun seedChannels(channels: List<Channel>) {
         channelDao.deleteAll()
         channelDao.insertAll(channels.map { it.toEntity() })
