@@ -45,4 +45,14 @@ class SetupSmokeTest {
                 .assertEmptySetupContentVisible()
         }
     }
+
+    @Test
+    fun emptyChannels_channelSourceActionOpensChannelSourceScreen() {
+        ActivityScenario.launch(MainActivity::class.java).use { _: ActivityScenario<MainActivity> ->
+            setup
+                .assertSetupVisible()
+                .openChannelSource()
+                .assertChannelSourceVisible()
+        }
+    }
 }

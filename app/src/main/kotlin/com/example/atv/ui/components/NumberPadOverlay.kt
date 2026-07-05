@@ -192,6 +192,7 @@ private fun NumberButton(
         onClick = { onClick(digit) },
         modifier = modifier
             .size(72.dp)
+            .testTag("${UiTestTags.NumberPadButtonPrefix}-$digit")
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
                     onUserInteraction()
@@ -239,6 +240,7 @@ private fun ActionButton(
         onClick = onClick,
         modifier = modifier
             .size(72.dp)
+            .testTag(if (label == stringResource(R.string.go)) UiTestTags.NumberPadGoButton else label)
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
                     onUserInteraction()

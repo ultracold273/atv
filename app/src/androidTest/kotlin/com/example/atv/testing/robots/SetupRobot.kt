@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.example.atv.ui.testing.UiTestTags
 
 class SetupRobot(
@@ -25,6 +26,18 @@ class SetupRobot(
         composeRule.onNodeWithText(AppTitle).assertIsDisplayed()
         composeRule.onNodeWithText(SetupPrompt).assertIsDisplayed()
         composeRule.onNodeWithText(ChannelSourceAction).assertIsDisplayed()
+    }
+
+    fun openChannelSource(): SetupRobot = apply {
+        composeRule.onNodeWithTag(UiTestTags.SetupChannelSourceButton).performClick()
+    }
+
+    fun assertChannelSourceVisible(): SetupRobot = apply {
+        waitUntilTagDisplayed(UiTestTags.IptvSettingsScreen)
+        waitUntilTextDisplayed("Playlist URL")
+        composeRule.onNodeWithTag(UiTestTags.IptvSettingsScreen).assertIsDisplayed()
+        composeRule.onNodeWithText("M3U8").assertIsDisplayed()
+        composeRule.onNodeWithText("Playlist URL").assertIsDisplayed()
     }
 
     private fun waitUntilTagDisplayed(tag: String) {

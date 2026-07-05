@@ -1,0 +1,7 @@
+com.example.atv.PlaybackSmokeTest
+com.example.atv.SetupSmokeTest
+com.example.atv.ChannelNavigationTest
+com.example.atv.SettingsFlowTest
+com.example.atv.PlaylistLoadingTest
+com.example.atv.MockServerPlaylistImportSmokeTest
+com.example.atv.MockServerProxyImportSmokeTest
