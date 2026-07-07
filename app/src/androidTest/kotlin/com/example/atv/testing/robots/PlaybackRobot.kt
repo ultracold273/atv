@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import com.example.atv.ui.testing.UiTestTags
@@ -94,13 +95,13 @@ class PlaybackRobot(
     @OptIn(ExperimentalTestApi::class)
     fun enterChannelNumber(channelNumber: Int): PlaybackRobot = apply {
         val input = channelNumber.toString()
-        composeRule.onNodeWithTag(UiTestTags.NumberPadOverlay).performKeyInput {
-            input.forEach { digit -> pressKey(digit.toNumberKey()) }
+        input.forEach { digit ->
+            composeRule
+                .onNodeWithTag("${UiTestTags.NumberPadButtonPrefix}-$digit")
+                .performClick()
         }
         waitUntilTextDisplayed(input)
-        composeRule.onNodeWithTag(UiTestTags.NumberPadOverlay).performKeyInput {
-            pressKey(Key.DirectionCenter)
-        }
+        composeRule.onNodeWithTag(UiTestTags.NumberPadGoButton).performClick()
     }
 
     fun assertSettingsMenuVisible(): PlaybackRobot = apply {
@@ -139,17 +140,4 @@ class PlaybackRobot(
         }
     }
 
-    private fun Char.toNumberKey(): Key = when (this) {
-        '0' -> Key.Zero
-        '1' -> Key.One
-        '2' -> Key.Two
-        '3' -> Key.Three
-        '4' -> Key.Four
-        '5' -> Key.Five
-        '6' -> Key.Six
-        '7' -> Key.Seven
-        '8' -> Key.Eight
-        '9' -> Key.Nine
-        else -> error("Not a number key: $this")
-    }
 }

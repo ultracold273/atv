@@ -42,10 +42,11 @@ class SetupRobot(
 
     fun assertChannelSourceVisible(): SetupRobot = apply {
         waitUntilTagDisplayed(UiTestTags.IptvSettingsScreen)
-        waitUntilTextDisplayed("Playlist URL")
+        waitUntilTextDisplayed(ChannelSourceAction)
         composeRule.onNodeWithTag(UiTestTags.IptvSettingsScreen).assertIsDisplayed()
         composeRule.onNodeWithText("M3U8").assertIsDisplayed()
-        composeRule.onNodeWithText("Playlist URL").assertIsDisplayed()
+        composeRule.onNodeWithText("Direct CTC").assertIsDisplayed()
+        composeRule.onNodeWithText("Home proxy").assertIsDisplayed()
     }
 
     private fun waitUntilTagDisplayed(tag: String) {
