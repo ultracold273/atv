@@ -169,6 +169,29 @@ class PlaybackViewModelTest {
             // Then
             assertEquals(1, viewModel.uiState.value.currentChannelIndex) // Index 1 = channel number 2
         }
+
+        @Test
+        fun `should auto-play with default source mode during initialization`() = runTest {
+            // Given
+            val channel = TestFixtures.SAMPLE_CHANNEL.copy(
+                streamUrl = "igmp://239.1.1.1:8000"
+            )
+            every { channelRepository.getAllChannels() } returns flowOf(listOf(channel))
+            prefsFlow.value = UserPreferences(udpxyProxy = UserPreferences.DEFAULT_UDPXY_PROXY)
+            every { atvPlayer.playChannel(any(), any()) } just runs
+
+            // When
+            viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // Then
+            verify {
+                atvPlayer.playChannel(
+                    channel,
+                    "http://${UserPreferences.DEFAULT_UDPXY_PROXY}/udp/239.1.1.1:8000"
+                )
+            }
+        }
     }
     
     @Nested
