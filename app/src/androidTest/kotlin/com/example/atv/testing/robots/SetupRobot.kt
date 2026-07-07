@@ -1,10 +1,14 @@
 package com.example.atv.testing.robots
 
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import com.example.atv.ui.testing.UiTestTags
 
 class SetupRobot(
@@ -28,8 +32,12 @@ class SetupRobot(
         composeRule.onNodeWithText(ChannelSourceAction).assertIsDisplayed()
     }
 
+    @OptIn(ExperimentalTestApi::class)
     fun openChannelSource(): SetupRobot = apply {
-        composeRule.onNodeWithTag(UiTestTags.SetupChannelSourceButton).performClick()
+        waitUntilTagFocused(UiTestTags.SetupChannelSourceButton)
+        composeRule.onNodeWithTag(UiTestTags.SetupChannelSourceButton).performKeyInput {
+            pressKey(Key.DirectionCenter)
+        }
     }
 
     fun assertChannelSourceVisible(): SetupRobot = apply {
@@ -53,6 +61,15 @@ class SetupRobot(
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
                 composeRule.onNodeWithText(text).assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    private fun waitUntilTagFocused(tag: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag(tag).assertIsFocused()
                 true
             }.getOrDefault(false)
         }
