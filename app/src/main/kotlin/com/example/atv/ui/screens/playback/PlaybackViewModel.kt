@@ -389,8 +389,8 @@ class PlaybackViewModel @Inject constructor(
         viewModelScope.launch {
             val channel = switchChannelUseCase.switchToChannel(number)
             if (channel != null) {
-                playChannel(channel)
                 hideNumberPad()
+                playChannel(channel)
             } else {
                 // Show error for invalid channel number via Snack bar
                 val errorMessage = application.getString(R.string.error_channel_not_found, number)

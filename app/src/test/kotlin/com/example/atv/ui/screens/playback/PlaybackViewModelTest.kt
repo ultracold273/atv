@@ -461,5 +461,33 @@ class PlaybackViewModelTest {
             // Then
             assertEquals("1", viewModel.uiState.value.numberPadInput)
         }
+
+        @Test
+        fun `should show channel info after confirming number pad input`() = runTest {
+            // Given
+            val channels = listOf(
+                TestFixtures.SAMPLE_CHANNEL.copy(number = 1),
+                TestFixtures.SAMPLE_CHANNEL_2.copy(number = 2),
+                TestFixtures.SAMPLE_CHANNEL.copy(number = 3),
+            )
+            val channel = channels[2]
+            every { channelRepository.getAllChannels() } returns flowOf(channels)
+            coEvery { switchChannelUseCase.switchToChannel(3) } returns channel
+            every { atvPlayer.playChannel(any(), any()) } just runs
+
+            viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.showNumberPad()
+            viewModel.appendNumberPadDigit("3")
+
+            // When
+            viewModel.confirmNumberPadInput()
+            runCurrent()
+
+            // Then
+            assertFalse(viewModel.uiState.value.showNumberPad)
+            assertTrue(viewModel.uiState.value.showChannelInfo)
+            assertEquals(channel, viewModel.uiState.value.currentChannel)
+        }
     }
 }
