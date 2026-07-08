@@ -132,6 +132,7 @@ fun NumberPadOverlay(
                 ) {
                     Text(
                         text = input.ifEmpty { "-" },
+                        modifier = Modifier.testTag(UiTestTags.NumberPadInput),
                         style = AtvTypography.displayMedium,
                         color = if (input.isEmpty()) AtvColors.OnSurfaceVariant else AtvColors.Primary,
                         textAlign = TextAlign.Center

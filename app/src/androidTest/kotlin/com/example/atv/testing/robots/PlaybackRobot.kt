@@ -4,6 +4,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -100,8 +101,9 @@ class PlaybackRobot(
                 .onNodeWithTag("${UiTestTags.NumberPadButtonPrefix}-$digit")
                 .performClick()
         }
-        waitUntilTextDisplayed(input)
+        waitUntilNumberPadInputDisplayed(input)
         composeRule.onNodeWithTag(UiTestTags.NumberPadGoButton).performClick()
+        waitUntilTagGone(UiTestTags.NumberPadOverlay)
     }
 
     fun assertSettingsMenuVisible(): PlaybackRobot = apply {
@@ -126,6 +128,27 @@ class PlaybackRobot(
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
                 composeRule.onNodeWithText(text).assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    private fun waitUntilNumberPadInputDisplayed(input: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule
+                    .onNodeWithTag(UiTestTags.NumberPadInput)
+                    .assertTextEquals(input)
+                    .assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    private fun waitUntilTagGone(tag: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag(tag).assertDoesNotExist()
                 true
             }.getOrDefault(false)
         }

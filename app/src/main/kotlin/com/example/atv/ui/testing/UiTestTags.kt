@@ -9,6 +9,7 @@ object UiTestTags {
     const val ChannelListOverlay = "ChannelListOverlay"
     const val ChannelListItemPrefix = "ChannelListItem"
     const val NumberPadOverlay = "NumberPadOverlay"
+    const val NumberPadInput = "NumberPadInput"
     const val NumberPadButtonPrefix = "NumberPadButton"
     const val NumberPadGoButton = "NumberPadGoButton"
     const val SettingsMenu = "SettingsMenu"
