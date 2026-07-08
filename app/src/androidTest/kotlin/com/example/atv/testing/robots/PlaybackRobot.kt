@@ -96,13 +96,15 @@ class PlaybackRobot(
     @OptIn(ExperimentalTestApi::class)
     fun enterChannelNumber(channelNumber: Int): PlaybackRobot = apply {
         val input = channelNumber.toString()
-        input.forEach { digit ->
-            composeRule
-                .onNodeWithTag("${UiTestTags.NumberPadButtonPrefix}-$digit")
-                .performClick()
+        val focusedButtonTag = "${UiTestTags.NumberPadButtonPrefix}-5"
+        waitUntilTagFocused(focusedButtonTag)
+        composeRule.onNodeWithTag(focusedButtonTag).performKeyInput {
+            input.forEach { digit -> pressKey(digit.toNumberKey()) }
         }
         waitUntilNumberPadInputDisplayed(input)
-        composeRule.onNodeWithTag(UiTestTags.NumberPadGoButton).performClick()
+        composeRule.onNodeWithTag(focusedButtonTag).performKeyInput {
+            pressKey(Key.DirectionCenter)
+        }
         waitUntilTagGone(UiTestTags.NumberPadOverlay)
     }
 
@@ -161,6 +163,20 @@ class PlaybackRobot(
                 true
             }.getOrDefault(false)
         }
+    }
+
+    private fun Char.toNumberKey(): Key = when (this) {
+        '0' -> Key.Zero
+        '1' -> Key.One
+        '2' -> Key.Two
+        '3' -> Key.Three
+        '4' -> Key.Four
+        '5' -> Key.Five
+        '6' -> Key.Six
+        '7' -> Key.Seven
+        '8' -> Key.Eight
+        '9' -> Key.Nine
+        else -> error("Not a number key: $this")
     }
 
 }
