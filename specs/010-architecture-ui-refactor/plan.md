@@ -1,6 +1,6 @@
 # Implementation Plan: Architecture and UI Refactor
 
-**Branch**: `009-architecture-ui-refactor` | **Date**: 2026-06-29 | **Spec**: [spec.md](spec.md)
+**Branch**: `010-architecture-ui-refactor` | **Date**: 2026-06-29 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 
@@ -451,4 +451,3 @@ Use this checklist after any focus or playback UI refactor:
 ## Complexity Tracking
 
 This is a broad refactor with medium-to-high regression risk because Android TV focus and playback overlays are sensitive. The safest path is to start with non-playback UI extraction, preserve behavior mechanically, and delay focus-heavy changes until primitives and screen boundaries are stable. The highest-risk phases are playback ViewModel decomposition and focus hardening; both should have targeted tests or explicit manual verification before completion.
-

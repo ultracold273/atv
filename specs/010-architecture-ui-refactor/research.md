@@ -1,6 +1,6 @@
 # Research: Architecture and UI Refactor
 
-**Feature**: 009-architecture-ui-refactor  
+**Feature**: 010-architecture-ui-refactor  
 **Date**: 2026-06-28  
 **Status**: Draft
 
@@ -408,4 +408,3 @@ For each refactor slice:
 - Should proxy pairing become a standalone domain/application service before or after UI screen splitting?
 - Which focus paths should receive automated Compose UI tests first?
 - Should the refactor include UI polish such as replacing emoji icons, or should that be a separate visual cleanup after structural work?
-

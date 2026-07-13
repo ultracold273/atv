@@ -1,6 +1,6 @@
 # Feature Specification: Architecture and UI Refactor
 
-**Feature Branch**: `009-architecture-ui-refactor`  
+**Feature Branch**: `010-architecture-ui-refactor`  
 **Created**: 2026-06-28  
 **Status**: Draft  
 **Input**: Refactor the Android TV app architecture and UI implementation so the codebase is easier to read, understand, test, and extend, with particular focus on Compose TV screens, shared UI primitives, playback state coordination, and D-pad focus behavior.
@@ -202,7 +202,7 @@ As a developer, I want each refactor slice to be small enough to review and veri
 
 - **Existing UI implementation**: The refactor starts from current Compose screens and components.
 - **Existing tests**: Current domain/data/ViewModel tests provide regression protection.
-- **`009-architecture-ui-refactor/research.md`**: Source research that identifies current maintainability issues, risks, and recommended sequence.
+- **`010-architecture-ui-refactor/research.md`**: Source research that identifies current maintainability issues, risks, and recommended sequence.
 - **Compose UI test framework**: Needed if automated focus tests are added or expanded.
 - **Detekt and Android Lint**: Used to validate broad cleanup where feasible.
 
@@ -214,4 +214,3 @@ As a developer, I want each refactor slice to be small enough to review and veri
 - **Keep focus explicit**: Android TV focus behavior is product-critical; abstractions should clarify focus transitions, not hide them behind generic magic.
 - **Feature-local coordinators first**: Extract local controllers/coordinators before introducing broad app-wide architecture changes.
 - **Behavior-preserving extraction first**: Move code mechanically before making intentional behavior or visual changes.
-
