@@ -204,6 +204,7 @@ private fun ChannelColumn(
                         onChannelFocusRequesterChanged(itemRequester)
                     },
                     modifier = Modifier
+                        .testTag("${UiTestTags.ChannelListItemPrefix}-${channel.number}")
                         .focusRequester(itemRequester)
                         .then(
                             if (index == currentChannelIndex) {

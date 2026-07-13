@@ -94,6 +94,15 @@ class PlaybackViewModel @Inject constructor(
         private const val PANEL_DEBOUNCE_MS = 250L
     }
 
+    // Latest udpxy proxy from preferences, passed to AtvPlayer.playChannel so
+    // igmp:// channel URLs are relayed over HTTP. Seeded with the default so the
+    // startup auto-play never uses a null proxy before the preferences collector emits.
+    @Volatile
+    private var udpxyProxy: String? = UserPreferences.DEFAULT_UDPXY_PROXY
+
+    @Volatile
+    private var sourceMode: ChannelSourceMode = ChannelSourceMode.DIRECT_CTC
+
     init {
         atvPlayer.initialize()
         observeChannels()
@@ -103,16 +112,6 @@ class PlaybackViewModel @Inject constructor(
         observeUdpxyProxy()
         observeSourceMode()
     }
-
-    // Latest udpxy proxy from preferences, passed to AtvPlayer.playChannel so
-    // igmp:// channel URLs are relayed over HTTP. Seeded with the default so the
-    // startup auto-play (which races observeUdpxyProxy) never uses a null proxy.
-    // Volatile: written from a collector coroutine, read on the playback call path.
-    @Volatile
-    private var udpxyProxy: String? = UserPreferences.DEFAULT_UDPXY_PROXY
-
-    @Volatile
-    private var sourceMode: ChannelSourceMode = ChannelSourceMode.DIRECT_CTC
 
     private fun observeUdpxyProxy() {
         viewModelScope.launch {
@@ -390,8 +389,8 @@ class PlaybackViewModel @Inject constructor(
         viewModelScope.launch {
             val channel = switchChannelUseCase.switchToChannel(number)
             if (channel != null) {
-                playChannel(channel)
                 hideNumberPad()
+                playChannel(channel)
             } else {
                 // Show error for invalid channel number via Snack bar
                 val errorMessage = application.getString(R.string.error_channel_not_found, number)

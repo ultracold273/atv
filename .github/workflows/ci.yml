@@ -152,7 +152,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           emulator-boot-timeout: 900
-          script: ./gradlew app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.atv.PlaybackSmokeTest,com.example.atv.SetupSmokeTest --no-daemon
+          script: bash scripts/run-android-smoke.sh
 
       - name: Upload android smoke reports
         if: always()
@@ -162,6 +162,7 @@ jobs:
           path: |
             app/build/outputs/androidTest-results/connected/
             app/build/reports/androidTests/connected/
+            app/build/reports/android-smoke-diagnostics/
           retention-days: 14
 
       - name: Android Smoke Summary

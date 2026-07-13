@@ -1,9 +1,14 @@
 package com.example.atv.testing.robots
 
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import com.example.atv.ui.testing.UiTestTags
 
 class SetupRobot(
@@ -27,6 +32,23 @@ class SetupRobot(
         composeRule.onNodeWithText(ChannelSourceAction).assertIsDisplayed()
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    fun openChannelSource(): SetupRobot = apply {
+        waitUntilTagFocused(UiTestTags.SetupChannelSourceButton)
+        composeRule.onNodeWithTag(UiTestTags.SetupChannelSourceButton).performKeyInput {
+            pressKey(Key.DirectionCenter)
+        }
+    }
+
+    fun assertChannelSourceVisible(): SetupRobot = apply {
+        waitUntilTagDisplayed(UiTestTags.IptvSettingsScreen)
+        waitUntilTextDisplayed(ChannelSourceAction)
+        composeRule.onNodeWithTag(UiTestTags.IptvSettingsScreen).assertIsDisplayed()
+        composeRule.onNodeWithText("M3U8").assertIsDisplayed()
+        composeRule.onNodeWithText("Direct CTC").assertIsDisplayed()
+        composeRule.onNodeWithText("Home proxy").assertIsDisplayed()
+    }
+
     private fun waitUntilTagDisplayed(tag: String) {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
@@ -40,6 +62,15 @@ class SetupRobot(
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
                 composeRule.onNodeWithText(text).assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    private fun waitUntilTagFocused(tag: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag(tag).assertIsFocused()
                 true
             }.getOrDefault(false)
         }

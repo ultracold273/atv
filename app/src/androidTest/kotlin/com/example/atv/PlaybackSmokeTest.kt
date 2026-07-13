@@ -4,6 +4,8 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.atv.data.local.db.ChannelDao
+import com.example.atv.domain.repository.PreferencesRepository
+import com.example.atv.player.AtvPlayerController
 import com.example.atv.testing.E2eDatabaseSeeder
 import com.example.atv.testing.E2eFixtures
 import com.example.atv.testing.robots.PlaybackRobot
@@ -26,6 +28,8 @@ class PlaybackSmokeTest {
     val composeRule = createEmptyComposeRule()
 
     @Inject lateinit var channelDao: ChannelDao
+    @Inject lateinit var atvPlayer: AtvPlayerController
+    @Inject lateinit var preferencesRepository: PreferencesRepository
 
     private lateinit var playback: PlaybackRobot
 
@@ -34,7 +38,9 @@ class PlaybackSmokeTest {
         hiltRule.inject()
         playback = PlaybackRobot(composeRule)
         runBlocking {
-            E2eDatabaseSeeder(channelDao).seedChannels(E2eFixtures.playbackChannels)
+            val seeder = E2eDatabaseSeeder(channelDao)
+            seeder.resetPlaybackState(atvPlayer, preferencesRepository)
+            seeder.seedChannels(E2eFixtures.playbackChannels)
         }
     }
 
@@ -50,6 +56,43 @@ class PlaybackSmokeTest {
                 .waitForChannelInfoHidden()
                 .pressDpadLeft()
                 .assertChannelListVisible()
+        }
+    }
+
+    @Test
+    fun seededChannels_openSettingsMenuWithRemoteKeyShowsEntries() {
+        ActivityScenario.launch(MainActivity::class.java).use { _: ActivityScenario<MainActivity> ->
+            playback
+                .assertPlaybackVisible()
+                .waitForChannelInfoHidden()
+                .pressMenu()
+                .assertSettingsMenuVisible()
+        }
+    }
+
+    @Test
+    fun seededChannels_selectChannelFromChannelList() {
+        ActivityScenario.launch(MainActivity::class.java).use { _: ActivityScenario<MainActivity> ->
+            playback
+                .assertPlaybackVisible()
+                .waitForChannelInfoHidden()
+                .pressDpadLeft()
+                .assertChannelListVisible()
+                .moveFocusDownAndSelectFromChannelList()
+                .assertChannelInfoVisible("Sports Two")
+        }
+    }
+
+    @Test
+    fun seededChannels_enterChannelNumberFromNumberPad() {
+        ActivityScenario.launch(MainActivity::class.java).use { _: ActivityScenario<MainActivity> ->
+            playback
+                .assertPlaybackVisible()
+                .waitForChannelInfoHidden()
+                .pressOk()
+                .assertNumberPadVisible()
+                .enterChannelNumber(channelNumber = 3)
+                .assertChannelInfoVisible("Movies Three")
         }
     }
 }

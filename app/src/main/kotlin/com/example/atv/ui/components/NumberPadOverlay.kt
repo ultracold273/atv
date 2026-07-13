@@ -29,7 +29,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -72,9 +72,19 @@ fun NumberPadOverlay(
                 .fillMaxSize()
                 .testTag(UiTestTags.NumberPadOverlay)
                 .background(AtvColors.Background.copy(alpha = 0.7f))
-                .onKeyEvent { event ->
+                .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown) {
-                        when (event.key) {
+                        val digit = event.key.asNumberPadDigit()
+                        if (digit != null) {
+                            onDigitPressed(digit)
+                            onUserInteraction()
+                            true
+                        } else when (event.key) {
+                            Key.Enter, Key.DirectionCenter, Key.NumPadEnter -> {
+                                onConfirm()
+                                onUserInteraction()
+                                true
+                            }
                             Key.Back -> {
                                 onDismiss()
                                 true
@@ -122,6 +132,7 @@ fun NumberPadOverlay(
                 ) {
                     Text(
                         text = input.ifEmpty { "-" },
+                        modifier = Modifier.testTag(UiTestTags.NumberPadInput),
                         style = AtvTypography.displayMedium,
                         color = if (input.isEmpty()) AtvColors.OnSurfaceVariant else AtvColors.Primary,
                         textAlign = TextAlign.Center
@@ -181,6 +192,20 @@ fun NumberPadOverlay(
     }
 }
 
+private fun Key.asNumberPadDigit(): String? = when (this) {
+    Key.Zero, Key.NumPad0 -> "0"
+    Key.One, Key.NumPad1 -> "1"
+    Key.Two, Key.NumPad2 -> "2"
+    Key.Three, Key.NumPad3 -> "3"
+    Key.Four, Key.NumPad4 -> "4"
+    Key.Five, Key.NumPad5 -> "5"
+    Key.Six, Key.NumPad6 -> "6"
+    Key.Seven, Key.NumPad7 -> "7"
+    Key.Eight, Key.NumPad8 -> "8"
+    Key.Nine, Key.NumPad9 -> "9"
+    else -> null
+}
+
 @Composable
 private fun NumberButton(
     digit: String,
@@ -192,6 +217,7 @@ private fun NumberButton(
         onClick = { onClick(digit) },
         modifier = modifier
             .size(72.dp)
+            .testTag("${UiTestTags.NumberPadButtonPrefix}-$digit")
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
                     onUserInteraction()
@@ -239,6 +265,7 @@ private fun ActionButton(
         onClick = onClick,
         modifier = modifier
             .size(72.dp)
+            .testTag(if (label == stringResource(R.string.go)) UiTestTags.NumberPadGoButton else label)
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
                     onUserInteraction()

@@ -104,26 +104,30 @@ fun SettingsMenu(
                 SettingsMenuItem(
                     icon = "📂",
                     label = stringResource(R.string.load_playlist),
-                    onClick = onLoadPlaylist
+                    onClick = onLoadPlaylist,
+                    modifier = Modifier.testTag("${UiTestTags.SettingsMenuItemPrefix}-channel-source"),
                 )
                 
                 SettingsMenuItem(
                     icon = "📺",
                     label = stringResource(R.string.channel_management),
-                    onClick = onManageChannels
+                    onClick = onManageChannels,
+                    modifier = Modifier.testTag("${UiTestTags.SettingsMenuItemPrefix}-manage-channels"),
                 )
                 
                 SettingsMenuItem(
                     icon = "🗑️",
                     label = stringResource(R.string.clear_playlist),
                     onClick = onClearPlaylist,
-                    isDestructive = true
+                    isDestructive = true,
+                    modifier = Modifier.testTag("${UiTestTags.SettingsMenuItemPrefix}-clear-playlist"),
                 )
                 
                 SettingsMenuItem(
                     icon = "⚙️",
                     label = stringResource(R.string.all_settings),
-                    onClick = onOpenSettings
+                    onClick = onOpenSettings,
+                    modifier = Modifier.testTag("${UiTestTags.SettingsMenuItemPrefix}-all-settings"),
                 )
             }
         }

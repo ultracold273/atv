@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +45,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.atv.R
 import com.example.atv.domain.model.ChannelSourceMode
+import com.example.atv.ui.testing.UiTestTags
 import com.example.atv.ui.theme.AtvColors
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
@@ -74,6 +76,7 @@ fun IptvSettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .testTag(UiTestTags.IptvSettingsScreen)
             .background(AtvColors.Background)
             .handleDPadKeyEvents(onBack = {
                 if (uiState.importStatus is ImportStatus.Success) {

@@ -79,7 +79,9 @@ fun SetupScreen(
             SetupButton(
                 text = stringResource(R.string.channel_source_title),
                 onClick = onOpenChannelSource,
-                modifier = Modifier.focusRequester(focusRequester),
+                modifier = Modifier
+                    .testTag(UiTestTags.SetupChannelSourceButton)
+                    .focusRequester(focusRequester),
             )
             if (uiState.hasExistingPlaylist) {
                 Spacer(modifier = Modifier.height(16.dp))
