@@ -19,9 +19,7 @@ data class ChannelManagementUiState(
     val showAddDialog: Boolean = false,
     val editingChannel: Channel? = null,
     val deletingChannel: Channel? = null,
-    val errorMessage: String? = null,
-    val editName: String = "",
-    val editUrl: String = ""
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -82,13 +80,7 @@ class ChannelManagementViewModel @Inject constructor(
     // ==================== Edit Channel ====================
     
     fun showEditDialog(channel: Channel) {
-        _uiState.update { 
-            it.copy(
-                editingChannel = channel,
-                editName = channel.name,
-                editUrl = channel.streamUrl
-            ) 
-        }
+        _uiState.update { it.copy(editingChannel = channel) }
     }
     
     fun updateChannel(channel: Channel) {
@@ -127,16 +119,6 @@ class ChannelManagementViewModel @Inject constructor(
                 deletingChannel = null
             )
         }
-    }
-    
-    // ==================== Form State ====================
-    
-    fun updateEditName(name: String) {
-        _uiState.update { it.copy(editName = name) }
-    }
-    
-    fun updateEditUrl(url: String) {
-        _uiState.update { it.copy(editUrl = url) }
     }
     
     fun dismissError() {
