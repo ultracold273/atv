@@ -37,6 +37,7 @@ fun AtvButton(
     containerColor: Color = color.copy(alpha = 0.2f),
     focusedContainerColor: Color = color.copy(alpha = 0.3f),
     focusedBorderColor: Color = color,
+    focusedBorderWidth: Dp = 2.dp,
     height: Dp = 56.dp,
     fillMaxWidth: Boolean = false,
     contentAlignment: Alignment = Alignment.Center,
@@ -57,7 +58,7 @@ fun AtvButton(
         ),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(
-                border = BorderStroke(width = 2.dp, color = focusedBorderColor),
+                border = BorderStroke(width = focusedBorderWidth, color = focusedBorderColor),
                 shape = RoundedCornerShape(8.dp)
             )
         )
