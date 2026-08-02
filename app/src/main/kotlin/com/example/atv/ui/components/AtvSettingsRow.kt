@@ -28,7 +28,8 @@ fun AtvSettingsRow(
     subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isDestructive: Boolean = false
+    isDestructive: Boolean = false,
+    leadingContent: (@Composable () -> Unit)? = null
 ) {
     val titleColor = if (isDestructive) AtvColors.Error else AtvColors.OnSurface
     val subtitleColor = if (isDestructive) {
@@ -42,22 +43,29 @@ fun AtvSettingsRow(
         modifier = modifier,
         isDestructive = isDestructive
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = title,
-                style = AtvTypography.titleMedium,
-                color = titleColor
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = subtitle,
-                style = AtvTypography.bodyMedium,
-                color = subtitleColor
-            )
+            leadingContent?.let { content ->
+                content()
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = AtvTypography.titleMedium,
+                    color = titleColor
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    style = AtvTypography.bodyMedium,
+                    color = subtitleColor
+                )
+            }
         }
     }
 }
