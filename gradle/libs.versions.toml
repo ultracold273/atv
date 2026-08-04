@@ -1,6 +1,6 @@
 [versions]
 # Core - validated 2025-12-26
-kotlin = "2.1.0"
+kotlin = "2.3.0"
 agp = "8.7.3"
 ksp = "2.1.0-1.0.29"
 
