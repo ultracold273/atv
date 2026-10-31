@@ -4,6 +4,7 @@ import com.example.atv.data.local.db.ChannelDao
 import com.example.atv.data.repository.ChannelRepositoryImpl
 import com.example.atv.di.RepositoryModule
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.ChannelCatalogRepository
 import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.testing.fakes.FakePreferencesRepository
 import dagger.Module
@@ -18,6 +19,9 @@ import javax.inject.Singleton
     replaces = [RepositoryModule::class]
 )
 object TestRepositoryModule {
+    @Provides
+    fun provideCatalog(repository: ChannelRepository): ChannelCatalogRepository = repository as ChannelCatalogRepository
+
     @Provides
     @Singleton
     fun provideChannelRepository(channelDao: ChannelDao): ChannelRepository {

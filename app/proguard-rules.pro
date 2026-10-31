@@ -24,3 +24,8 @@
 
 # Keep Timber
 -dontwarn org.jetbrains.annotations.**
+# Optional Netty desktop integrations are not shipped; the server selects JDK logging explicitly.
+-dontwarn org.apache.log4j.**
+-dontwarn org.apache.logging.log4j.**
+-dontwarn org.slf4j.**
+-dontwarn reactor.blockhound.**

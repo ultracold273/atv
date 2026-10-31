@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
 import com.example.atv.R
@@ -42,6 +43,7 @@ import java.time.Clock
  * Main playback screen with full-screen video and overlays.
  */
 @Composable
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 fun PlaybackScreen(
     onNavigateToSetup: () -> Unit,
     onNavigateToChannelManagement: () -> Unit,
@@ -49,6 +51,10 @@ fun PlaybackScreen(
     viewModel: PlaybackViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(viewModel) {
+        viewModel.activateRemoteControl()
+        onPauseOrDispose { viewModel.deactivateRemoteControl() }
+    }
     val focusRequester = remember { FocusRequester() }
     val context = LocalContext.current
     val clock = remember { Clock.systemDefaultZone() }

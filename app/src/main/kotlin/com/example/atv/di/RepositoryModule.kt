@@ -3,6 +3,7 @@ package com.example.atv.di
 import com.example.atv.data.repository.ChannelRepositoryImpl
 import com.example.atv.data.repository.PreferencesRepositoryImpl
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.domain.repository.ChannelCatalogRepository
 import com.example.atv.domain.repository.PreferencesRepository
 import dagger.Binds
 import dagger.Module
@@ -16,6 +17,9 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+
+    @Binds
+    abstract fun bindChannelCatalogRepository(impl: ChannelRepositoryImpl): ChannelCatalogRepository
     
     @Binds
     @Singleton

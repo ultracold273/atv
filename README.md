@@ -14,6 +14,7 @@ ATV is a simple, modern IPTV player designed specifically for Android TV. It all
 - **Channel Management**: Manually add, edit, or delete channels directly on your TV.
 - **Auto-Play**: Automatically resumes your last watched channel on launch.
 - **Demo Mode**: Includes a built-in demo playlist to test functionality immediately.
+- **Agent Control**: Opt-in local HTTPS APIs let an external assistant list channels and request a switch by number. See the [setup and client example](docs/REMOTE_CONTROL.md).
 
 ## 🎮 Controls
 

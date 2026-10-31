@@ -6,7 +6,7 @@
 
 Add a foreground-only LAN control listener with exactly two operations: retrieve the complete channel catalog and request switching by channel number. The external agent owns language understanding and channel choice. A `202` response acknowledges dispatch; v1 has no playback-status interface or background command queue.
 
-Keep the API contract in the companion spec, following the existing spec/plan layout used by features 005-008. This change checks in design documents only. Implementation phases below remain unchecked.
+The API contract remains in the companion spec. Implementation and verification are complete; see [verification.md](verification.md) for measured results and [the controller guide](../../docs/REMOTE_CONTROL.md) for setup.
 
 Feature number `012` follows the repository's feature-numbering rule of considering both spec folders and existing numbered branches: the existing `011-startup-source-backstack-1.2.1` branch already occupies 011. Use the `codex/` prefix for the working branch.
 
@@ -20,7 +20,7 @@ Feature number `012` follows the repository's feature-numbering rule of consider
 - **Testing**: JUnit 5, MockK, coroutine tests, Room tests, real loopback requests to the embedded listener, existing fake-player instrumented fixtures
 - **Constraint**: All API operations and command dispatch follow foreground/playback-screen availability; no persistent service or extra API operations.
 
-An embedded server dependency has not been selected or added by this spec commit. Select a maintained Android-compatible implementation with TLS support and bounded resource usage during the listener phase, recording the dependency/security and APK-size impact in its implementation PR. Existing OkHttp is a client and is not the production listener.
+The listener uses Netty 4.1.139.Final HTTP/1 parsing and platform JSSE TLS, with a non-exportable P-256 key in Android Keystore. Optional desktop logging and BlockHound integrations are not enabled. Dependency/license checks, packaged size, and runtime verification are recorded in verification.md. OkHttp remains a client/test dependency.
 
 ## Constitution Check
 
@@ -45,7 +45,7 @@ An embedded server dependency has not been selected or added by this spec commit
 
 ## Proposed Project Structure
 
-Paths below are implementation targets, not files created by this documentation change.
+The implemented layout follows the existing domain/data/player/ui boundaries. Platform identity, network monitoring, and foreground ownership are separate collaborators alongside the server.
 
 ```text
 specs/012-agent-channel-control/
@@ -79,58 +79,58 @@ Keep source-mode URL handling and playback orchestration in the existing applica
 
 ## Phase 1: Atomic Catalog and Number Selection
 
-- [ ] Add a catalog snapshot projection containing only number, name, and group title for the wire response.
-- [ ] Derive an opaque version from a deterministic digest of the complete, ordered stored channel records, including underlying stream URLs. Keep serialization stable and distinguish null from empty values; never expose or log the canonical input. This avoids introducing a new channel-ID schema or a persistent revision table.
-- [ ] Make playlist delete/insert replacement one Room transaction. Coordinate every add, update, delete, clear, and import operation through the same catalog mutation guard.
-- [ ] Read a consistent snapshot and use the same guard for version validation, number lookup, and handoff to playback. A separate version check followed by an unguarded lookup is insufficient.
-- [ ] Release the guard after dispatch, before media loading; no network/media I/O may hold it. Ensure local controls participate in dispatch ordering.
-- [ ] Test empty catalogs, sorting, duplicate names, stable versions, metadata/URL changes, replacement atomicity, missing numbers, and import-vs-switch races.
+- [x] Add a catalog snapshot projection containing only number, name, and group title for the wire response.
+- [x] Derive an opaque version from a deterministic digest of the complete, ordered stored channel records, including underlying stream URLs. Keep serialization stable and distinguish null from empty values; never expose or log the canonical input. This avoids introducing a new channel-ID schema or a persistent revision table.
+- [x] Make playlist delete/insert replacement one Room transaction. Coordinate every add, update, delete, clear, and import operation through the same catalog mutation guard.
+- [x] Read a consistent snapshot and use the same guard for version validation, number lookup, and handoff to playback. A separate version check followed by an unguarded lookup is insufficient.
+- [x] Release the guard after dispatch, before media loading; no network/media I/O may hold it. Ensure local controls participate in dispatch ordering.
+- [x] Test empty catalogs, sorting, duplicate names, stable versions, metadata/URL changes, replacement atomicity, missing numbers, and import-vs-switch races.
 
 ## Phase 2: Shared Foreground Switch Workflow
 
-- [ ] Introduce the smallest shared coordinator that reuses the current switching workflow and returns a typed dispatch result.
-- [ ] Keep source-mode/udpxy URL resolution, last-watched persistence, current-channel UI state, channel information, and EPG refresh consistent for both local and external switches.
-- [ ] Register readiness only while the playback screen and its player are active. Invalidate readiness on disposal/backgrounding; the listener must never retain a cleared ViewModel or player.
-- [ ] Recheck readiness and current authorization before dispatching on the appropriate player/UI thread. Cancel undispatched work on disablement, credential rotation, or lifecycle loss.
-- [ ] Return unavailable/busy failures without navigation or durable queuing. Serialize with physical-remote switches and keep resources bounded.
-- [ ] Acknowledge only after the workflow has accepted the selected channel. Do not wait for buffering completion or first frame, and do not wire player state into an external status interface.
-- [ ] Test ordinary switching, overlays, late player errors, teardown during dispatch, concurrent local/remote requests, and retention of existing EPG behavior.
+- [x] Introduce the smallest shared coordinator that reuses the current switching workflow and returns a typed dispatch result.
+- [x] Keep source-mode/udpxy URL resolution, last-watched persistence, current-channel UI state, channel information, and EPG refresh consistent for both local and external switches.
+- [x] Register readiness only while the playback screen and its player are active. Invalidate readiness on disposal/backgrounding; the listener must never retain a cleared ViewModel or player.
+- [x] Recheck readiness and current authorization before dispatching on the appropriate player/UI thread. Cancel undispatched work on disablement, credential rotation, or lifecycle loss.
+- [x] Return unavailable/busy failures without navigation or durable queuing. Serialize with physical-remote switches and keep resources bounded.
+- [x] Acknowledge only after the workflow has accepted the selected channel. Do not wait for buffering completion or first frame, and do not wire player state into an external status interface.
+- [x] Test ordinary switching, overlays, late player errors, teardown during dispatch, concurrent local/remote requests, and retention of existing EPG behavior.
 
 ## Phase 3: Two-Operation HTTPS Listener
 
-- [ ] Select and document an Android-compatible embedded server implementation; verify TLS support, license, dependency advisories, resource limits, and APK impact before adoption.
-- [ ] Register only the two routes from the spec; disable any framework-added management, health, discovery, or status routes. Unsupported methods/paths follow the specified error contract.
-- [ ] Validate bearer authorization before data access or side effects. Keep token headers and request details containing secrets out of logs.
-- [ ] Implement strict input validation, the 4 KiB switch-body limit, bounded connection/dispatch handling, sanitized errors, and no-store response headers.
-- [ ] Map the domain/application result to the documented status code. Build the `202` body from the dispatched request, not observed media state.
-- [ ] Integrate foreground start/stop and binding-error reporting; do not add foreground-service or battery-optimization workarounds.
-- [ ] Run contract tests against the actual embedded listener with a local test client. MockWebServer can still support upstream-stream fixtures, but cannot substitute for testing the production server routes.
+- [x] Select and document an Android-compatible embedded server implementation; verify TLS support, license, dependency advisories, resource limits, and APK impact before adoption.
+- [x] Register only the two routes from the spec; disable any framework-added management, health, discovery, or status routes. Unsupported methods/paths follow the specified error contract.
+- [x] Validate bearer authorization before data access or side effects. Keep token headers and request details containing secrets out of logs.
+- [x] Implement strict input validation, the 4 KiB switch-body limit, bounded connection/dispatch handling, sanitized errors, and no-store response headers.
+- [x] Map the domain/application result to the documented status code. Build the `202` body from the dispatched request, not observed media state.
+- [x] Integrate foreground start/stop and binding-error reporting; do not add foreground-service or battery-optimization workarounds.
+- [x] Run contract tests against the actual embedded listener with a local test client. MockWebServer can still support upstream-stream fixtures, but cannot substitute for testing the production server routes.
 
 ## Phase 4: TV Provisioning and Settings
 
-- [ ] Add an opt-in switch, listener availability/error feedback, current endpoint display, credential reveal/rotation, and TLS identity details using shared settings components.
-- [ ] Generate a dedicated random controller credential and store it encrypted. Keep one credential per installation in v1; rotation invalidates all earlier client copies.
-- [ ] Provision an installation-specific TLS key/certificate and provide an out-of-band trust procedure using the certificate/public-key fingerprint shown on the TV. Keep private-key material protected using Android's secure storage facilities.
-- [ ] Document a native/scripted client setup that verifies that identity before sending the token. Do not introduce a pairing endpoint, network credential export, or an insecure verification-bypass example.
-- [ ] Preserve the enabled preference across launches, but listen only during foreground operation. Update connection details after LAN address changes and handle bind failures without interrupting playback.
-- [ ] Add English/Chinese strings and verify D-pad reachability, disabled/error states, and BACK behavior.
+- [x] Add an opt-in switch, listener availability/error feedback, current endpoint display, credential reveal/rotation, and TLS identity details using shared settings components.
+- [x] Generate a dedicated random controller credential and store it encrypted. Keep one credential per installation in v1; rotation invalidates all earlier client copies.
+- [x] Provision an installation-specific TLS key/certificate and provide an out-of-band trust procedure using the certificate/public-key fingerprint shown on the TV. Keep private-key material protected using Android's secure storage facilities.
+- [x] Document a native/scripted client setup that verifies that identity before sending the token. Do not introduce a pairing endpoint, network credential export, or an insecure verification-bypass example.
+- [x] Preserve the enabled preference across launches, but listen only during foreground operation. Update connection details after LAN address changes and handle bind failures without interrupting playback.
+- [x] Add English/Chinese strings and verify D-pad reachability, disabled/error states, and BACK behavior.
 
 ## Phase 5: Verification and Client Example
 
-- [ ] Add a small developer example that retrieves the complete catalog and submits a returned number/version. It must use only the two operations and label `202` as dispatch acknowledgement.
-- [ ] Use local fixtures and test credentials; no provider credentials, home TV automation, cloud model, or live IPTV feed is required for automated tests. Follow the [Android test safety roadmap](../009-android-test-safety-roadmap/spec.md).
-- [ ] Contract tests cover every specified success/error response and ensure absent playback-status/name-search functionality is not accidentally exposed.
-- [ ] Add an instrumented flow using the fake player: enable control, retrieve the catalog through the listener, submit a number, verify the player/UI selection locally, and confirm listener shutdown on background/disablement.
-- [ ] Verify a delayed/failed stream still produces dispatch acknowledgement and normal TV error handling; no test should infer actual playback from `202`.
-- [ ] Exercise unauthorized callers, credential rotation, TLS identity mismatch, stale versions, import races, port conflicts, and non-playback routes.
-- [ ] Run focused unit/contract tests plus existing playback, EPG, settings, and channel-repository regression tests. Run relevant lint/Detekt checks and affected instrumented tests for implementation changes.
-- [ ] Record warm request p95 and UI responsiveness with a 1,000-channel fixture, identifying the device and excluding TLS establishment and media startup.
+- [x] Add a small developer example that retrieves the complete catalog and submits a returned number/version. It must use only the two operations and label `202` as dispatch acknowledgement.
+- [x] Use local fixtures and test credentials; no provider credentials, home TV automation, cloud model, or live IPTV feed is required for automated tests. Follow the [Android test safety roadmap](../009-android-test-safety-roadmap/spec.md).
+- [x] Contract tests cover every specified success/error response and ensure absent playback-status/name-search functionality is not accidentally exposed.
+- [x] Add an instrumented flow using the fake player: enable control, retrieve the catalog through the listener, submit a number, verify the player/UI selection locally, and confirm listener shutdown on background/disablement.
+- [x] Verify a delayed/failed stream still produces dispatch acknowledgement and normal TV error handling; no test should infer actual playback from `202`.
+- [x] Exercise unauthorized callers, credential rotation, TLS identity mismatch, stale versions, import races, port conflicts, and non-playback routes.
+- [x] Run focused unit/contract tests plus existing playback, EPG, settings, and channel-repository regression tests. Run relevant lint/Detekt checks and affected instrumented tests for implementation changes.
+- [x] Record warm request p95 and UI responsiveness with a 1,000-channel fixture, identifying the device and excluding TLS establishment and media startup.
 
-## Documentation Validation for This Commit
+## Documentation Validation
 
 - Verify the spec and plan agree on exactly two operations, agent-owned name resolution, numbered selection, and acknowledgement-only responses.
 - Parse every JSON example and resolve repository-relative links.
-- Run `git diff --check` and inspect the staged file list. No application source changes, runtime dependencies, or generated artifacts belong in this documentation commit.
+- Run `git diff --check` and inspect the staged file list. Only source, tests, configuration, and documentation belong in the implementation commits; generated artifacts and unrelated local files are excluded.
 
 ## Complexity Tracking
 

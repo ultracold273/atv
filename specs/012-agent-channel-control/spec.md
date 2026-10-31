@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Draft
+**Status**: Implemented; pending review
 
 **Input**: Let an external agent retrieve the complete ATV channel catalog, resolve the viewer's request itself, and switch ATV to the selected channel number. Limit v1 to these two operations; omit the playback-status interface and app-side channel-name resolution.
 
@@ -197,7 +197,7 @@ Unknown paths return `404 NOT_FOUND`; unsupported methods on known paths return 
 - **SC-004**: An accepted response is produced without awaiting stream buffering or playback success. An injected later player failure appears on the TV and does not change the documented acknowledgement semantics.
 - **SC-005**: Enable/disable, background/foreground transitions, token rotation, TLS identity verification, and port-binding failure are covered by integration or instrumented tests.
 - **SC-006**: On the recorded test device, warm local requests for a catalog of 1,000 channels and switch dispatch meet the constitution's 200 ms p95 standard-operation target, excluding connection/TLS establishment and media loading. Playback remains responsive during requests.
-- **SC-007**: Existing channel switching, EPG, and settings tests remain green; new implementation code meets the constitution's coverage thresholds. This documentation change itself requires no application build or device tests.
+- **SC-007**: Existing channel switching, EPG, and settings tests remain green; new implementation code meets the constitution's coverage thresholds. Implementation verification is recorded in [verification.md](verification.md).
 
 ## Out of Scope
 

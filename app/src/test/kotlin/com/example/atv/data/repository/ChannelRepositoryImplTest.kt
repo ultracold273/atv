@@ -119,15 +119,13 @@ class ChannelRepositoryImplTest {
                 TestFixtures.SAMPLE_CHANNEL,
                 TestFixtures.SAMPLE_CHANNEL_2
             )
-            coEvery { channelDao.deletePlaylistChannels() } just runs
-            coEvery { channelDao.insertAll(any()) } just runs
+            coEvery { channelDao.replacePlaylistChannels(any()) } just runs
             
             // When
             repository.savePlaylistChannels(channels)
             
             // Then
-            coVerify(exactly = 1) { channelDao.deletePlaylistChannels() }
-            coVerify(exactly = 1) { channelDao.insertAll(match { it.size == 2 }) }
+            coVerify(exactly = 1) { channelDao.replacePlaylistChannels(match { it.size == 2 }) }
         }
         
         @Test
@@ -135,8 +133,7 @@ class ChannelRepositoryImplTest {
             // Given
             val channels = listOf(TestFixtures.SAMPLE_CHANNEL)
             val capturedEntities = slot<List<ChannelEntity>>()
-            coEvery { channelDao.deletePlaylistChannels() } just runs
-            coEvery { channelDao.insertAll(capture(capturedEntities)) } just runs
+            coEvery { channelDao.replacePlaylistChannels(capture(capturedEntities)) } just runs
             
             // When
             repository.savePlaylistChannels(channels)

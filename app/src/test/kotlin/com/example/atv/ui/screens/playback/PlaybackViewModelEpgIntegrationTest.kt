@@ -124,6 +124,7 @@ class PlaybackViewModelEpgIntegrationTest {
             resolveStreamUrl = ResolveStreamUrlUseCase(),
             epgProvider = epgProvider,
             clock = fixedClock,
+            channelSwitchCoordinator = io.mockk.mockk(relaxed = true),
         )
     }
 

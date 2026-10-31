@@ -14,6 +14,7 @@ import com.example.atv.domain.repository.PreferencesRepository
 import com.example.atv.domain.usecase.ResolveStreamUrlUseCase
 import com.example.atv.domain.usecase.SwitchChannelUseCase
 import com.example.atv.player.AtvPlayerController
+import com.example.atv.player.ChannelSwitchCoordinator
 import com.example.atv.player.PlayerState
 import com.example.atv.ui.components.SnackBarManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -48,7 +49,8 @@ class PlaybackViewModel @Inject constructor(
     private val switchChannelUseCase: SwitchChannelUseCase,
     private val resolveStreamUrl: ResolveStreamUrlUseCase,
     private val epgProvider: EpgProvider,
-    private val clock: Clock
+    private val clock: Clock,
+    private val channelSwitchCoordinator: ChannelSwitchCoordinator,
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(PlaybackUiState())
@@ -63,6 +65,22 @@ class PlaybackViewModel @Inject constructor(
     private var overlayAutoHideJob: Job? = null
     private var bannerEpgJob: Job? = null
     private var panelEpgJob: Job? = null
+    private var remotePlaybackBinding: AutoCloseable? = null
+
+    fun activateRemoteControl() {
+        deactivateRemoteControl()
+        remotePlaybackBinding = channelSwitchCoordinator.attach { channel, channels ->
+            _uiState.update { it.copy(channels = channels) }
+            hideNumberPad()
+            hideChannelList()
+            playChannel(channel)
+        }
+    }
+
+    fun deactivateRemoteControl() {
+        remotePlaybackBinding?.close()
+        remotePlaybackBinding = null
+    }
 
     private val focusedChannelFlow = MutableSharedFlow<Pair<Channel, String>>(
         replay = 1,
@@ -576,6 +594,7 @@ class PlaybackViewModel @Inject constructor(
     }
     
     override fun onCleared() {
+        deactivateRemoteControl()
         super.onCleared()
         atvPlayer.release()
     }

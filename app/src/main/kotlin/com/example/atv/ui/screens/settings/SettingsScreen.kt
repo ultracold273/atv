@@ -35,6 +35,7 @@ import com.example.atv.ui.components.AtvDialogButton
 import com.example.atv.ui.components.AtvSettingsRow
 import com.example.atv.ui.components.AtvToggleRow
 import com.example.atv.ui.theme.AtvColors
+import com.example.atv.ui.screens.settings.components.RemoteControlSettingsSection
 import com.example.atv.ui.theme.AtvTypography
 import com.example.atv.ui.util.handleDPadKeyEvents
 
@@ -221,6 +222,8 @@ private fun SettingsOptions(
             checked = uiState.epgEnabled,
             onCheckedChange = onSetEpgEnabled
         )
+
+        RemoteControlSettingsSection()
 
         AtvSettingsRow(
             title = stringResource(R.string.clear_all_data),
