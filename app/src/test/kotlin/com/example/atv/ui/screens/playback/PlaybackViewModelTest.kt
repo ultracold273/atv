@@ -95,7 +95,8 @@ class PlaybackViewModelTest {
             switchChannelUseCase = switchChannelUseCase,
             resolveStreamUrl = ResolveStreamUrlUseCase(),
             epgProvider = epgProvider,
-            clock = fixedClock
+            clock = fixedClock,
+            channelSwitchCoordinator = io.mockk.mockk(relaxed = true),
         )
     }
     

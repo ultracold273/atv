@@ -104,6 +104,15 @@ android {
         buildConfig = true
     }
 
+    packaging {
+        resources {
+            // JAR indexes are not used in APKs; retain module versions and all license notices.
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/services/reactor.blockhound.integration.BlockHoundIntegration"
+            merges += listOf("META-INF/io.netty.versions.properties", "META-INF/LICENSE.txt", "META-INF/NOTICE.txt")
+        }
+    }
+
     sourceSets {
         getByName("androidTest") {
             assets.srcDir("$projectDir/schemas")
@@ -170,6 +179,8 @@ dependencies {
 
     // Networking
     implementation(libs.okhttp)
+    implementation(libs.netty.http)
+    implementation(libs.netty.handler)
 
     // Serialization (JSON)
     implementation(libs.kotlinx.serialization.json)
@@ -181,6 +192,7 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.room.testing)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.okhttp.tls)
     
     // Android Instrumented Testing (E2E)
     androidTestImplementation(libs.androidx.test.runner)

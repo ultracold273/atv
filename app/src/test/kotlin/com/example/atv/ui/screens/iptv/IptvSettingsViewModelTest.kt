@@ -77,7 +77,8 @@ class IptvSettingsViewModelTest {
         coEvery { sourceStore.clearProxySettings() } just runs
         every { preferencesRepository.getUserPreferences() } returns flowOf(UserPreferences())
         coEvery { preferencesRepository.setUdpxyProxy(any()) } just runs
-        coEvery { proxyPairingClient.createSession(any(), any()) } returns Result.failure(IllegalStateException("unused"))
+        coEvery { proxyPairingClient.createSession(any(), any()) } returns
+            Result.failure(IllegalStateException("unused"))
     }
 
     @AfterEach

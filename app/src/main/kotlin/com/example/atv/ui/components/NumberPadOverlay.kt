@@ -192,19 +192,20 @@ fun NumberPadOverlay(
     }
 }
 
-private fun Key.asNumberPadDigit(): String? = when (this) {
-    Key.Zero, Key.NumPad0 -> "0"
-    Key.One, Key.NumPad1 -> "1"
-    Key.Two, Key.NumPad2 -> "2"
-    Key.Three, Key.NumPad3 -> "3"
-    Key.Four, Key.NumPad4 -> "4"
-    Key.Five, Key.NumPad5 -> "5"
-    Key.Six, Key.NumPad6 -> "6"
-    Key.Seven, Key.NumPad7 -> "7"
-    Key.Eight, Key.NumPad8 -> "8"
-    Key.Nine, Key.NumPad9 -> "9"
-    else -> null
-}
+private val numberPadDigits = mapOf(
+    Key.Zero to "0", Key.NumPad0 to "0",
+    Key.One to "1", Key.NumPad1 to "1",
+    Key.Two to "2", Key.NumPad2 to "2",
+    Key.Three to "3", Key.NumPad3 to "3",
+    Key.Four to "4", Key.NumPad4 to "4",
+    Key.Five to "5", Key.NumPad5 to "5",
+    Key.Six to "6", Key.NumPad6 to "6",
+    Key.Seven to "7", Key.NumPad7 to "7",
+    Key.Eight to "8", Key.NumPad8 to "8",
+    Key.Nine to "9", Key.NumPad9 to "9",
+)
+
+private fun Key.asNumberPadDigit(): String? = numberPadDigits[this]
 
 @Composable
 private fun NumberButton(

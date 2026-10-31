@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -19,6 +20,15 @@ interface ChannelDao {
      */
     @Query("SELECT * FROM channels ORDER BY number ASC")
     fun getAllChannels(): Flow<List<ChannelEntity>>
+
+    @Query("SELECT * FROM channels ORDER BY number ASC")
+    suspend fun getSnapshot(): List<ChannelEntity>
+
+    @Transaction
+    suspend fun replacePlaylistChannels(channels: List<ChannelEntity>) {
+        deletePlaylistChannels()
+        insertAll(channels)
+    }
     
     /**
      * Get a single channel by number.

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.tv.material3.Surface
 import com.example.atv.domain.repository.ChannelRepository
+import com.example.atv.data.remotecontrol.RemoteControlManager
 import com.example.atv.ui.components.SnackBarManager
 import com.example.atv.ui.navigation.AtvNavGraph
 import com.example.atv.ui.navigation.Routes
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     
     @Inject lateinit var channelRepository: ChannelRepository
+    @Inject lateinit var remoteControl: RemoteControlManager
     
     private var lastBackPressTime = 0L
     
@@ -66,6 +68,16 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    override fun onStart() {
+        super.onStart()
+        remoteControl.setForeground(true)
+    }
+
+    override fun onStop() {
+        remoteControl.setForeground(false)
+        super.onStop()
+    }
+
     /**
      * Called when the user is leaving the activity as a result of user choice.
      * For example, when HOME button is pressed.

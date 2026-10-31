@@ -22,6 +22,9 @@ class FakeAtvPlayer(context: Context) : AtvPlayerController {
     }
 
     override fun retry() = Unit
+    fun failPlayback(message: String) {
+        state.value = PlayerState.Error(state.value.currentChannel, message)
+    }
     override fun pause() = Unit
     override fun resume() = Unit
     override fun stop() {

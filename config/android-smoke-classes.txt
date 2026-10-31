@@ -5,3 +5,8 @@ com.example.atv.SettingsFlowTest
 com.example.atv.PlaylistLoadingTest
 com.example.atv.MockServerPlaylistImportSmokeTest
 com.example.atv.MockServerProxyImportSmokeTest
+com.example.atv.RemoteControlSmokeTest#realTlsSwitchSharesPlaybackAndForegroundLifecycle
+com.example.atv.RemoteControlSmokeTest#settingsProvisioningKeepsFullScreenSettingsOutOfRemoteDispatch
+com.example.atv.RemoteControlSmokeTest#portConflictIsVisibleAndRetryRecovers
+com.example.atv.ChannelCatalogDatabaseTest
+com.example.atv.RemoteControlStorageTest

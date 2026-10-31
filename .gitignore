@@ -42,3 +42,6 @@ Thumbs.db
 # Test outputs
 app/build/
 app/release/
+# Local Kotlin and Python tooling caches
+.kotlin/
+__pycache__/

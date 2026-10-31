@@ -159,4 +159,21 @@
     <string name="udpxy_proxy_subtitle">通过 HTTP 转播 igmp:// 频道（主机:端口，例如 openwrt:4022）</string>
     <string name="udpxy_proxy_label">udpxy 代理（主机:端口）</string>
     <string name="udpxy_proxy_hint">openwrt:4022</string>
+    <string name="remote_control_title">允许助手控制</string>
+    <string name="remote_control_description">ATV 打开时，允许家庭网络中的控制端选择频道。</string>
+    <string name="remote_control_disabled">远程控制已关闭。</string>
+    <string name="remote_control_starting">正在启动远程控制…</string>
+    <string name="remote_control_running">已就绪。返回播放画面后即可接收切台请求。</string>
+    <string name="remote_control_paused">ATV 进入后台时，远程控制暂停。</string>
+    <string name="remote_control_error">无法启动远程控制，仍可正常观看电视。</string>
+    <string name="remote_control_retry_hint">请检查网络以及其他应用是否占用 8765 端口，然后重试。</string>
+    <string name="remote_control_connection">连接信息</string>
+    <string name="remote_control_connection_hint">显示配置受信任控制端所需的信息。</string>
+    <string name="remote_control_connection_instructions">使用以下信息配置控制端，然后返回播放画面。发送访问令牌前，请核对电视的证书指纹。</string>
+    <string name="remote_control_address">电视地址</string>
+    <string name="remote_control_no_network">将电视连接至家庭网络后，即可显示地址。</string>
+    <string name="remote_control_token">访问令牌</string>
+    <string name="remote_control_fingerprint">电视证书指纹（SHA-256）</string>
+    <string name="remote_control_rotate">更换访问令牌</string>
+    <string name="remote_control_rotate_hint">现有控制端将失去访问权限，需要使用新令牌重新配置。</string>
 </resources>

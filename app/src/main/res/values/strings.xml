@@ -158,4 +158,21 @@
     <string name="udpxy_proxy_subtitle">Relay igmp:// channels over HTTP (host:port, e.g. openwrt:4022)</string>
     <string name="udpxy_proxy_label">udpxy proxy (host:port)</string>
     <string name="udpxy_proxy_hint">openwrt:4022</string>
+    <string name="remote_control_title">Control by an assistant</string>
+    <string name="remote_control_description">Let a controller on your home network select channels while ATV is open.</string>
+    <string name="remote_control_disabled">Remote control is off.</string>
+    <string name="remote_control_starting">Starting remote control…</string>
+    <string name="remote_control_running">Ready. Return to the playback screen to accept channel switches.</string>
+    <string name="remote_control_paused">Remote control is paused while ATV is in the background.</string>
+    <string name="remote_control_error">Unable to start remote control. Playback is still available.</string>
+    <string name="remote_control_retry_hint">Check the network and whether another app is using port 8765, then retry.</string>
+    <string name="remote_control_connection">Connection details</string>
+    <string name="remote_control_connection_hint">Show the details needed to set up your trusted controller.</string>
+    <string name="remote_control_connection_instructions">Configure your controller with these details, then return to playback. Verify the TV fingerprint before sending the access token.</string>
+    <string name="remote_control_address">TV address</string>
+    <string name="remote_control_no_network">Connect the TV to your home network to display its address.</string>
+    <string name="remote_control_token">Access token</string>
+    <string name="remote_control_fingerprint">TV certificate fingerprint (SHA-256)</string>
+    <string name="remote_control_rotate">Replace access token</string>
+    <string name="remote_control_rotate_hint">Existing controllers will lose access. Configure them again with the new token.</string>
 </resources>

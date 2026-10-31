@@ -339,7 +339,7 @@ class IptvSettingsViewModel @Inject constructor(
         clientNonce: String,
         intervalSeconds: Long,
     ) {
-        var nextInterval = intervalSeconds.coerceIn(MIN_PAIRING_POLL_SECONDS, MAX_PAIRING_POLL_SECONDS)
+        var nextInterval = boundedPairingInterval(intervalSeconds, MIN_PAIRING_POLL_SECONDS)
         while (isActivePairing(pairingId)) {
             delay(nextInterval * MILLIS_PER_SECOND)
             if (!isActivePairing(pairingId)) return
@@ -348,34 +348,35 @@ class IptvSettingsViewModel @Inject constructor(
                     if (!isActivePairing(pairingId)) return
                     when (response.status) {
                         "pending" -> {
-                            nextInterval = (response.pollIntervalSeconds ?: nextInterval)
-                                .coerceIn(MIN_PAIRING_POLL_SECONDS, MAX_PAIRING_POLL_SECONDS)
-                            _uiState.update { state ->
-                                state.copy(
-                                    proxyPairingStatus = ProxyPairingStatus.Pending(
-                                        sessionId = sessionId,
-                                        pairingCode = (state.proxyPairingStatus as? ProxyPairingStatus.Pending)
-                                            ?.pairingCode
-                                            .orEmpty(),
-                                        expiresAt = response.expiresAt
-                                            ?: (state.proxyPairingStatus as? ProxyPairingStatus.Pending)?.expiresAt
-                                            ?: 0L,
-                                    ),
-                                )
-                            }
+                            nextInterval = boundedPairingInterval(response.pollIntervalSeconds, nextInterval)
+                            updatePendingPairing(sessionId, response.expiresAt)
                         }
-                        "approved" -> handlePairingApproved(pairingId, proxyBaseUrl, response.accessToken, response.tokenType)
+                        "approved" -> handlePairingApproved(
+                            pairingId, proxyBaseUrl, response.accessToken, response.tokenType
+                        )
                         "rejected" -> finishPairing(pairingId, ProxyPairingStatus.Rejected)
                         "expired" -> finishPairing(pairingId, ProxyPairingStatus.Expired)
                         else -> finishPairing(pairingId, ProxyPairingStatus.Error("unknown pairing status"))
                     }
                 },
                 onFailure = { t ->
-                    if (isActivePairing(pairingId)) {
-                        finishPairing(pairingId, ProxyPairingStatus.Error(t.message.orEmpty()))
-                    }
+                    finishPairing(pairingId, ProxyPairingStatus.Error(t.message.orEmpty()))
                 },
             )
+        }
+    }
+
+    private fun boundedPairingInterval(seconds: Long?, fallback: Long): Long =
+        (seconds ?: fallback).coerceIn(MIN_PAIRING_POLL_SECONDS, MAX_PAIRING_POLL_SECONDS)
+
+    private fun updatePendingPairing(sessionId: String, expiresAt: Long?) {
+        _uiState.update { state ->
+            val previous = state.proxyPairingStatus as? ProxyPairingStatus.Pending
+            state.copy(proxyPairingStatus = ProxyPairingStatus.Pending(
+                sessionId = sessionId,
+                pairingCode = previous?.pairingCode.orEmpty(),
+                expiresAt = expiresAt ?: previous?.expiresAt ?: 0L,
+            ))
         }
     }
 

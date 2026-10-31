@@ -108,9 +108,11 @@ fun ImportStatusView(status: ImportStatus) {
     )
 }
 
+private const val PAIRING_CODE_GROUP_LENGTH = 3
+
 private fun formatPairingCode(code: String): String = code
     .filter { it.isDigit() }
-    .chunked(3)
+    .chunked(PAIRING_CODE_GROUP_LENGTH)
     .joinToString(" ")
 
 private fun formatPairingExpiry(expiresAt: Long): String = runCatching {
